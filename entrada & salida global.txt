@@ -1,0 +1,75 @@
+"Server Name=OCISERVER;dbq=GLOBALOCI;User ID=GLOBALOCI;Password=GLOBALOCI;"
+
+
+
+entrada
+"INSERT INTO TIME_ATTENDANCE (EMPLOYEE,CHARGE_DATE,IN_TS_MIN,OUT_TS_MIN,DATE_IN,TIME_IN,DATE_OUT,TIME_OUT,NAME,DEPT,SHIFT,REC_TYPE " & _
+                           " ,CLOCKED_IN,BAL_AS_DATE,DATE_LAST_CHG,TIME_LAST_CHG,LAST_CHG_BY,LAST_CHG_PROG,HOURS_HH,HOURS_MM,DOLLAR_AMT) " & _
+                            " VALUES ('" & numemp & "','" & fecha2 & "','" & valorminutos & "','0.0000','" & fecha2 & "','" & horasalida & "','00000000','000000','" & nameemp & "','" & depemp & "','" & shiftemp & "','T','Y' " & _
+                            ",'00000000','" & fecha2 & "','" & horasalida & "00','" & numemp & "','OLL302','0','0','0.00')"
+
+guardarlogin(inicioglobal, iniciotime, "")
+
+guarda entrada
+
+ Sub guardarlogin(ByVal instruccion As String, ByVal instruccion2 As String, ByVal salida As String)
+        cierraconexion()
+        abreconexion()
+        sqltr = Nothing
+        Dim comando As PsqlCommand = cadenaconexion.CreateCommand
+        sqltr = cadenaconexion.BeginTransaction
+        comando.Connection = cadenaconexion
+        comando.Transaction = sqltr
+        comando.CommandText = instruccion
+        comando.ExecuteNonQuery()
+        comando.CommandText = instruccion2
+        comando.ExecuteNonQuery()
+        sqltr.Commit()
+        cierraconexion()
+    End Sub
+
+
+salida
+
+               fecha = Date.Today
+                Dim fechacreacion As Date
+                fechacreacion = fecha
+                Dim fechasalida = Format(fechacreacion, "yyyy-MM-dd")
+                salida = "UPDATE TIME_ATTENDANCE SET OUT_TS_MIN =" & valorminutos & ", DATE_OUT ='" & fecha2 & "', TIME_OUT ='" & horasalida & "' , CLOCKED_IN ='', HOURS_HH =" & horas & ", HOURS_MM =" & minutos & ", ACTUAL_DATE='" & fechasalida & "' where CLOCKED_IN = 'Y' and employee='" & numemp & "'"
+                borrar = "delete from emp_in_process_g where employee='" & numemp & "'"
+                registrasalida("", "", salida, borrar)
+
+
+
+guarda salida
+
+Sub registrasalida(ByVal instruccion As String, ByVal instruccion2 As String, ByVal instruccion3 As String, ByVal instruccion4 As String)
+        cierraconexion()
+        abreconexion()
+        sqltr = Nothing
+        Dim comando As PsqlCommand = cadenaconexion.CreateCommand
+        sqltr = cadenaconexion.BeginTransaction
+        comando.Connection = cadenaconexion
+        comando.Transaction = sqltr
+        If instruccion = "" And instruccion2 = "" Then
+            comando.CommandText = instruccion3
+            comando.ExecuteNonQuery()
+            comando.CommandText = instruccion4
+            comando.ExecuteNonQuery()
+        Else
+            comando.CommandText = instruccion
+            comando.ExecuteNonQuery()
+            comando.CommandText = instruccion2
+            comando.ExecuteNonQuery()
+            comando.CommandText = instruccion3
+            comando.ExecuteNonQuery()
+            comando.CommandText = instruccion4
+            comando.ExecuteNonQuery()
+        End If
+        sqltr.Commit()
+        'CLIETEWS.SENDATA("PS " & nparte)
+        cierraconexion()
+    End Sub
+
+
+

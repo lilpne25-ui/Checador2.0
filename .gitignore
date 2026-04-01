@@ -1,0 +1,36 @@
+# Build outputs
+**/bin/
+**/obj/
+_build_temp/
+
+# VS / IDE
+.vs/
+*.user
+*.suo
+
+# Logs and temporary artifacts
+logs/
+*.log
+
+# OS artifacts
+Thumbs.db
+Desktop.ini
+
+# Local config overrides (keep secrets out of Git)
+**/appsettings.local.json
+
+# NuGet packages folder (if local)
+packages/
+
+# Test and coverage artifacts
+TestResults/
+coverage/
+*.coverage
+*.trx
+
+# Generated installer intermediate files
+installer/_obj/
+
+# Misc
+*.tmp
+*.bak

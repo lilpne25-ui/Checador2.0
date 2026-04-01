@@ -1,0 +1,29 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="Checador RH"
+    Manufacturer="Operadora Comercial Innovax"
+    Version="2.0.0.0"
+    UpgradeCode="9C8D5A9D-8E63-4C4E-8F64-0B1F6D0E5A13"
+    Language="3082"
+    Scope="perMachine"
+  >
+    <MajorUpgrade DowngradeErrorMessage="Ya hay una versión más reciente de Checador RH instalada." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFilesFolder">
+      <Directory Id="INSTALLFOLDER" Name="Checador RH">
+        <Files
+          Include="$(var.SourceDir)\**"
+          ComponentGroupName="CG_MainFiles"
+        />
+      </Directory>
+    </StandardDirectory>
+
+    <Icon Id="AppIcon" SourceFile="$(var.SourceDir)\Checador.Desktop.exe" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+
+    <Feature Id="MainFeature" Title="Checador RH" Level="1">
+      <ComponentGroupRef Id="CG_MainFiles" />
+    </Feature>
+  </Package>
+</Wix>;

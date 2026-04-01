@@ -1,0 +1,34 @@
+-- REPARACION CONTROLADA DE TIME_ATTENDANCE (Pervasive)
+-- Uso:
+-- 1) Ejecuta SELECT de respaldo para validar filas objetivo.
+-- 2) Ejecuta DELETE solo del empleado/rango afectado.
+-- 3) Corre de nuevo "Descargar Registros" en Checador/SyncAgent para reconstruir.
+--
+-- IMPORTANTE:
+-- - Ajusta EMPLOYEE y rango CHARGE_DATE antes de ejecutar.
+-- - CHARGE_DATE formato yyyymmdd.
+
+-- ===== PARAMETROS (edita estos valores) =====
+-- Ejemplo real:
+-- EMPLOYEE = '00130'
+-- FROM_DATE = 20260318
+-- TO_DATE   = 20260318
+
+-- ===== RESPALDO / VALIDACION PREVIA =====
+SELECT *
+FROM TIME_ATTENDANCE
+WHERE EMPLOYEE = '00130'
+  AND CHARGE_DATE BETWEEN 20260318 AND 20260318
+ORDER BY CHARGE_DATE;
+
+-- ===== BORRADO CONTROLADO =====
+DELETE FROM TIME_ATTENDANCE
+WHERE EMPLOYEE = '00130'
+  AND CHARGE_DATE BETWEEN 20260318 AND 20260318;
+
+-- ===== VALIDACION POST-BORRADO =====
+SELECT *
+FROM TIME_ATTENDANCE
+WHERE EMPLOYEE = '00130'
+  AND CHARGE_DATE BETWEEN 20260318 AND 20260318
+ORDER BY CHARGE_DATE;

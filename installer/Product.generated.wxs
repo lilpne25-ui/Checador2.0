@@ -1,0 +1,738 @@
+﻿<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Checador RH" Manufacturer="Operadora Comercial Innovax" Version="2.0.0.0" UpgradeCode="9C8D5A9D-8E63-4C4E-8F64-0B1F6D0E5A13" Language="3082" Scope="perUser">
+    <MajorUpgrade DowngradeErrorMessage="Ya hay una versiÃ³n mÃ¡s reciente de Checador RH instalada." />
+    <MediaTemplate EmbedCab="yes" />
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="INSTALLFOLDER" Name="Checador RH">
+        <Component Id="CMP1" Guid="*">
+          <File Id="FIL1" Source="E:\checador 2.0\dist\Checador-RH-20260317\appsettings.json" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP2" Guid="*">
+          <File Id="FIL2" Source="E:\checador 2.0\dist\Checador-RH-20260317\Azure.Core.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP3" Guid="*">
+          <File Id="FIL3" Source="E:\checador 2.0\dist\Checador-RH-20260317\Azure.Identity.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP4" Guid="*">
+          <File Id="FIL4" Source="E:\checador 2.0\dist\Checador-RH-20260317\Checador.Application.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP5" Guid="*">
+          <File Id="FIL5" Source="E:\checador 2.0\dist\Checador-RH-20260317\Checador.Application.pdb" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP6" Guid="*">
+          <File Id="FIL6" Source="E:\checador 2.0\dist\Checador-RH-20260317\Checador.Desktop.deps.json" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP7" Guid="*">
+          <File Id="FIL7" Source="E:\checador 2.0\dist\Checador-RH-20260317\Checador.Desktop.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP8" Guid="*">
+          <File Id="FIL8" Source="E:\checador 2.0\dist\Checador-RH-20260317\Checador.Desktop.exe" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP9" Guid="*">
+          <File Id="FIL9" Source="E:\checador 2.0\dist\Checador-RH-20260317\Checador.Desktop.pdb" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP10" Guid="*">
+          <File Id="FIL10" Source="E:\checador 2.0\dist\Checador-RH-20260317\Checador.Desktop.runtimeconfig.json" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP11" Guid="*">
+          <File Id="FIL11" Source="E:\checador 2.0\dist\Checador-RH-20260317\Checador.Domain.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP12" Guid="*">
+          <File Id="FIL12" Source="E:\checador 2.0\dist\Checador-RH-20260317\Checador.Domain.pdb" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP13" Guid="*">
+          <File Id="FIL13" Source="E:\checador 2.0\dist\Checador-RH-20260317\Checador.Infrastructure.Access.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP14" Guid="*">
+          <File Id="FIL14" Source="E:\checador 2.0\dist\Checador-RH-20260317\Checador.Infrastructure.Access.pdb" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP15" Guid="*">
+          <File Id="FIL15" Source="E:\checador 2.0\dist\Checador-RH-20260317\Checador.Infrastructure.Excel.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP16" Guid="*">
+          <File Id="FIL16" Source="E:\checador 2.0\dist\Checador-RH-20260317\Checador.Infrastructure.Excel.pdb" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP17" Guid="*">
+          <File Id="FIL17" Source="E:\checador 2.0\dist\Checador-RH-20260317\ClosedXML.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP18" Guid="*">
+          <File Id="FIL18" Source="E:\checador 2.0\dist\Checador-RH-20260317\ClosedXML.Parser.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP19" Guid="*">
+          <File Id="FIL19" Source="E:\checador 2.0\dist\Checador-RH-20260317\DocumentFormat.OpenXml.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP20" Guid="*">
+          <File Id="FIL20" Source="E:\checador 2.0\dist\Checador-RH-20260317\DocumentFormat.OpenXml.Framework.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP21" Guid="*">
+          <File Id="FIL21" Source="E:\checador 2.0\dist\Checador-RH-20260317\ExcelNumberFormat.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP22" Guid="*">
+          <File Id="FIL22" Source="E:\checador 2.0\dist\Checador-RH-20260317\formato.xlsx" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP23" Guid="*">
+          <File Id="FIL23" Source="E:\checador 2.0\dist\Checador-RH-20260317\INICIAR-CHECADOR.cmd" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP24" Guid="*">
+          <File Id="FIL24" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.Bcl.AsyncInterfaces.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP25" Guid="*">
+          <File Id="FIL25" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.Data.SqlClient.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP26" Guid="*">
+          <File Id="FIL26" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.Extensions.Configuration.Abstractions.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP27" Guid="*">
+          <File Id="FIL27" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.Extensions.Configuration.Binder.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP28" Guid="*">
+          <File Id="FIL28" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.Extensions.Configuration.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP29" Guid="*">
+          <File Id="FIL29" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.Extensions.Configuration.FileExtensions.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP30" Guid="*">
+          <File Id="FIL30" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.Extensions.Configuration.Json.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP31" Guid="*">
+          <File Id="FIL31" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.Extensions.DependencyInjection.Abstractions.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP32" Guid="*">
+          <File Id="FIL32" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.Extensions.DependencyInjection.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP33" Guid="*">
+          <File Id="FIL33" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.Extensions.FileProviders.Abstractions.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP34" Guid="*">
+          <File Id="FIL34" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.Extensions.FileProviders.Physical.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP35" Guid="*">
+          <File Id="FIL35" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.Extensions.FileSystemGlobbing.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP36" Guid="*">
+          <File Id="FIL36" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.Extensions.Primitives.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP37" Guid="*">
+          <File Id="FIL37" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.Identity.Client.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP38" Guid="*">
+          <File Id="FIL38" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.Identity.Client.Extensions.Msal.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP39" Guid="*">
+          <File Id="FIL39" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.IdentityModel.Abstractions.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP40" Guid="*">
+          <File Id="FIL40" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.IdentityModel.JsonWebTokens.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP41" Guid="*">
+          <File Id="FIL41" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.IdentityModel.Logging.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP42" Guid="*">
+          <File Id="FIL42" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.IdentityModel.Protocols.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP43" Guid="*">
+          <File Id="FIL43" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.IdentityModel.Protocols.OpenIdConnect.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP44" Guid="*">
+          <File Id="FIL44" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.IdentityModel.Tokens.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP45" Guid="*">
+          <File Id="FIL45" Source="E:\checador 2.0\dist\Checador-RH-20260317\Microsoft.SqlServer.Server.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP46" Guid="*">
+          <File Id="FIL46" Source="E:\checador 2.0\dist\Checador-RH-20260317\RBush.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP47" Guid="*">
+          <File Id="FIL47" Source="E:\checador 2.0\dist\Checador-RH-20260317\SixLabors.Fonts.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP48" Guid="*">
+          <File Id="FIL48" Source="E:\checador 2.0\dist\Checador-RH-20260317\System.ClientModel.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP49" Guid="*">
+          <File Id="FIL49" Source="E:\checador 2.0\dist\Checador-RH-20260317\System.Configuration.ConfigurationManager.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP50" Guid="*">
+          <File Id="FIL50" Source="E:\checador 2.0\dist\Checador-RH-20260317\System.Data.Odbc.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP51" Guid="*">
+          <File Id="FIL51" Source="E:\checador 2.0\dist\Checador-RH-20260317\System.Data.OleDb.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP52" Guid="*">
+          <File Id="FIL52" Source="E:\checador 2.0\dist\Checador-RH-20260317\System.Diagnostics.DiagnosticSource.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP53" Guid="*">
+          <File Id="FIL53" Source="E:\checador 2.0\dist\Checador-RH-20260317\System.Diagnostics.PerformanceCounter.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP54" Guid="*">
+          <File Id="FIL54" Source="E:\checador 2.0\dist\Checador-RH-20260317\System.IdentityModel.Tokens.Jwt.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP55" Guid="*">
+          <File Id="FIL55" Source="E:\checador 2.0\dist\Checador-RH-20260317\System.IO.Packaging.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP56" Guid="*">
+          <File Id="FIL56" Source="E:\checador 2.0\dist\Checador-RH-20260317\System.Memory.Data.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP57" Guid="*">
+          <File Id="FIL57" Source="E:\checador 2.0\dist\Checador-RH-20260317\System.Runtime.Caching.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP58" Guid="*">
+          <File Id="FIL58" Source="E:\checador 2.0\dist\Checador-RH-20260317\System.Security.Cryptography.ProtectedData.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP59" Guid="*">
+          <File Id="FIL59" Source="E:\checador 2.0\dist\Checador-RH-20260317\System.Text.Encoding.CodePages.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP60" Guid="*">
+          <File Id="FIL60" Source="E:\checador 2.0\dist\Checador-RH-20260317\System.Text.Encodings.Web.dll" KeyPath="yes" />
+        </Component>
+        <Component Id="CMP61" Guid="*">
+          <File Id="FIL61" Source="E:\checador 2.0\dist\Checador-RH-20260317\System.Text.Json.dll" KeyPath="yes" />
+        </Component>
+        <Directory Id="DIR1" Name="de">
+          <Component Id="CMP62" Guid="*">
+            <File Id="FIL62" Source="E:\checador 2.0\dist\Checador-RH-20260317\de\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+          </Component>
+        </Directory>
+        <Directory Id="DIR2" Name="es">
+          <Component Id="CMP63" Guid="*">
+            <File Id="FIL63" Source="E:\checador 2.0\dist\Checador-RH-20260317\es\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+          </Component>
+        </Directory>
+        <Directory Id="DIR3" Name="fr">
+          <Component Id="CMP64" Guid="*">
+            <File Id="FIL64" Source="E:\checador 2.0\dist\Checador-RH-20260317\fr\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+          </Component>
+        </Directory>
+        <Directory Id="DIR4" Name="it">
+          <Component Id="CMP65" Guid="*">
+            <File Id="FIL65" Source="E:\checador 2.0\dist\Checador-RH-20260317\it\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+          </Component>
+        </Directory>
+        <Directory Id="DIR5" Name="ja">
+          <Component Id="CMP66" Guid="*">
+            <File Id="FIL66" Source="E:\checador 2.0\dist\Checador-RH-20260317\ja\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+          </Component>
+        </Directory>
+        <Directory Id="DIR6" Name="ko">
+          <Component Id="CMP67" Guid="*">
+            <File Id="FIL67" Source="E:\checador 2.0\dist\Checador-RH-20260317\ko\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+          </Component>
+        </Directory>
+        <Directory Id="DIR7" Name="pt-BR">
+          <Component Id="CMP68" Guid="*">
+            <File Id="FIL68" Source="E:\checador 2.0\dist\Checador-RH-20260317\pt-BR\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+          </Component>
+        </Directory>
+        <Directory Id="DIR8" Name="ru">
+          <Component Id="CMP69" Guid="*">
+            <File Id="FIL69" Source="E:\checador 2.0\dist\Checador-RH-20260317\ru\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+          </Component>
+        </Directory>
+        <Directory Id="DIR9" Name="runtimes">
+          <Directory Id="DIR10" Name="browser">
+            <Directory Id="DIR11" Name="lib">
+              <Directory Id="DIR12" Name="net6.0">
+                <Component Id="CMP70" Guid="*">
+                  <File Id="FIL70" Source="E:\checador 2.0\dist\Checador-RH-20260317\runtimes\browser\lib\net6.0\System.Text.Encodings.Web.dll" KeyPath="yes" />
+                </Component>
+              </Directory>
+            </Directory>
+          </Directory>
+          <Directory Id="DIR13" Name="freebsd">
+            <Directory Id="DIR14" Name="lib">
+              <Directory Id="DIR15" Name="net6.0">
+                <Component Id="CMP71" Guid="*">
+                  <File Id="FIL71" Source="E:\checador 2.0\dist\Checador-RH-20260317\runtimes\freebsd\lib\net6.0\System.Data.Odbc.dll" KeyPath="yes" />
+                </Component>
+              </Directory>
+            </Directory>
+          </Directory>
+          <Directory Id="DIR16" Name="linux">
+            <Directory Id="DIR17" Name="lib">
+              <Directory Id="DIR18" Name="net6.0">
+                <Component Id="CMP72" Guid="*">
+                  <File Id="FIL72" Source="E:\checador 2.0\dist\Checador-RH-20260317\runtimes\linux\lib\net6.0\System.Data.Odbc.dll" KeyPath="yes" />
+                </Component>
+              </Directory>
+            </Directory>
+          </Directory>
+          <Directory Id="DIR19" Name="osx">
+            <Directory Id="DIR20" Name="lib">
+              <Directory Id="DIR21" Name="net6.0">
+                <Component Id="CMP73" Guid="*">
+                  <File Id="FIL73" Source="E:\checador 2.0\dist\Checador-RH-20260317\runtimes\osx\lib\net6.0\System.Data.Odbc.dll" KeyPath="yes" />
+                </Component>
+              </Directory>
+            </Directory>
+          </Directory>
+          <Directory Id="DIR22" Name="unix">
+            <Directory Id="DIR23" Name="lib">
+              <Directory Id="DIR24" Name="net6.0">
+                <Component Id="CMP74" Guid="*">
+                  <File Id="FIL74" Source="E:\checador 2.0\dist\Checador-RH-20260317\runtimes\unix\lib\net6.0\Microsoft.Data.SqlClient.dll" KeyPath="yes" />
+                </Component>
+              </Directory>
+            </Directory>
+          </Directory>
+          <Directory Id="DIR25" Name="win">
+            <Directory Id="DIR26" Name="lib">
+              <Directory Id="DIR27" Name="net6.0">
+                <Component Id="CMP75" Guid="*">
+                  <File Id="FIL75" Source="E:\checador 2.0\dist\Checador-RH-20260317\runtimes\win\lib\net6.0\Microsoft.Data.SqlClient.dll" KeyPath="yes" />
+                </Component>
+                <Component Id="CMP76" Guid="*">
+                  <File Id="FIL76" Source="E:\checador 2.0\dist\Checador-RH-20260317\runtimes\win\lib\net6.0\System.Data.Odbc.dll" KeyPath="yes" />
+                </Component>
+                <Component Id="CMP77" Guid="*">
+                  <File Id="FIL77" Source="E:\checador 2.0\dist\Checador-RH-20260317\runtimes\win\lib\net6.0\System.Data.OleDb.dll" KeyPath="yes" />
+                </Component>
+                <Component Id="CMP78" Guid="*">
+                  <File Id="FIL78" Source="E:\checador 2.0\dist\Checador-RH-20260317\runtimes\win\lib\net6.0\System.Diagnostics.PerformanceCounter.dll" KeyPath="yes" />
+                </Component>
+                <Component Id="CMP79" Guid="*">
+                  <File Id="FIL79" Source="E:\checador 2.0\dist\Checador-RH-20260317\runtimes\win\lib\net6.0\System.Runtime.Caching.dll" KeyPath="yes" />
+                </Component>
+                <Component Id="CMP80" Guid="*">
+                  <File Id="FIL80" Source="E:\checador 2.0\dist\Checador-RH-20260317\runtimes\win\lib\net6.0\System.Text.Encoding.CodePages.dll" KeyPath="yes" />
+                </Component>
+              </Directory>
+            </Directory>
+          </Directory>
+          <Directory Id="DIR28" Name="win-arm">
+            <Directory Id="DIR29" Name="native">
+              <Component Id="CMP81" Guid="*">
+                <File Id="FIL81" Source="E:\checador 2.0\dist\Checador-RH-20260317\runtimes\win-arm\native\Microsoft.Data.SqlClient.SNI.dll" KeyPath="yes" />
+              </Component>
+            </Directory>
+          </Directory>
+          <Directory Id="DIR30" Name="win-arm64">
+            <Directory Id="DIR31" Name="native">
+              <Component Id="CMP82" Guid="*">
+                <File Id="FIL82" Source="E:\checador 2.0\dist\Checador-RH-20260317\runtimes\win-arm64\native\Microsoft.Data.SqlClient.SNI.dll" KeyPath="yes" />
+              </Component>
+            </Directory>
+          </Directory>
+          <Directory Id="DIR32" Name="win-x64">
+            <Directory Id="DIR33" Name="native">
+              <Component Id="CMP83" Guid="*">
+                <File Id="FIL83" Source="E:\checador 2.0\dist\Checador-RH-20260317\runtimes\win-x64\native\Microsoft.Data.SqlClient.SNI.dll" KeyPath="yes" />
+              </Component>
+            </Directory>
+          </Directory>
+          <Directory Id="DIR34" Name="win-x86">
+            <Directory Id="DIR35" Name="native">
+              <Component Id="CMP84" Guid="*">
+                <File Id="FIL84" Source="E:\checador 2.0\dist\Checador-RH-20260317\runtimes\win-x86\native\Microsoft.Data.SqlClient.SNI.dll" KeyPath="yes" />
+              </Component>
+            </Directory>
+          </Directory>
+        </Directory>
+        <Directory Id="DIR36" Name="win-x86">
+          <Component Id="CMP85" Guid="*">
+            <File Id="FIL85" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\appsettings.json" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP86" Guid="*">
+            <File Id="FIL86" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Azure.Core.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP87" Guid="*">
+            <File Id="FIL87" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Azure.Identity.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP88" Guid="*">
+            <File Id="FIL88" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Checador.Application.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP89" Guid="*">
+            <File Id="FIL89" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Checador.Application.pdb" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP90" Guid="*">
+            <File Id="FIL90" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Checador.Desktop.deps.json" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP91" Guid="*">
+            <File Id="FIL91" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Checador.Desktop.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP92" Guid="*">
+            <File Id="FIL92" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Checador.Desktop.exe" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP93" Guid="*">
+            <File Id="FIL93" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Checador.Desktop.pdb" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP94" Guid="*">
+            <File Id="FIL94" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Checador.Desktop.runtimeconfig.json" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP95" Guid="*">
+            <File Id="FIL95" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Checador.Domain.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP96" Guid="*">
+            <File Id="FIL96" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Checador.Domain.pdb" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP97" Guid="*">
+            <File Id="FIL97" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Checador.Infrastructure.Access.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP98" Guid="*">
+            <File Id="FIL98" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Checador.Infrastructure.Access.pdb" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP99" Guid="*">
+            <File Id="FIL99" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Checador.Infrastructure.Excel.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP100" Guid="*">
+            <File Id="FIL100" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Checador.Infrastructure.Excel.pdb" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP101" Guid="*">
+            <File Id="FIL101" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\ClosedXML.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP102" Guid="*">
+            <File Id="FIL102" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\ClosedXML.Parser.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP103" Guid="*">
+            <File Id="FIL103" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\DocumentFormat.OpenXml.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP104" Guid="*">
+            <File Id="FIL104" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\DocumentFormat.OpenXml.Framework.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP105" Guid="*">
+            <File Id="FIL105" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\ExcelNumberFormat.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP106" Guid="*">
+            <File Id="FIL106" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\formato.xlsx" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP107" Guid="*">
+            <File Id="FIL107" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.Bcl.AsyncInterfaces.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP108" Guid="*">
+            <File Id="FIL108" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.Data.SqlClient.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP109" Guid="*">
+            <File Id="FIL109" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.Data.SqlClient.SNI.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP110" Guid="*">
+            <File Id="FIL110" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.Extensions.Configuration.Abstractions.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP111" Guid="*">
+            <File Id="FIL111" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.Extensions.Configuration.Binder.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP112" Guid="*">
+            <File Id="FIL112" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.Extensions.Configuration.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP113" Guid="*">
+            <File Id="FIL113" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.Extensions.Configuration.FileExtensions.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP114" Guid="*">
+            <File Id="FIL114" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.Extensions.Configuration.Json.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP115" Guid="*">
+            <File Id="FIL115" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.Extensions.DependencyInjection.Abstractions.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP116" Guid="*">
+            <File Id="FIL116" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.Extensions.DependencyInjection.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP117" Guid="*">
+            <File Id="FIL117" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.Extensions.FileProviders.Abstractions.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP118" Guid="*">
+            <File Id="FIL118" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.Extensions.FileProviders.Physical.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP119" Guid="*">
+            <File Id="FIL119" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.Extensions.FileSystemGlobbing.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP120" Guid="*">
+            <File Id="FIL120" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.Extensions.Primitives.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP121" Guid="*">
+            <File Id="FIL121" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.Identity.Client.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP122" Guid="*">
+            <File Id="FIL122" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.Identity.Client.Extensions.Msal.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP123" Guid="*">
+            <File Id="FIL123" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.IdentityModel.Abstractions.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP124" Guid="*">
+            <File Id="FIL124" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.IdentityModel.JsonWebTokens.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP125" Guid="*">
+            <File Id="FIL125" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.IdentityModel.Logging.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP126" Guid="*">
+            <File Id="FIL126" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.IdentityModel.Protocols.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP127" Guid="*">
+            <File Id="FIL127" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.IdentityModel.Protocols.OpenIdConnect.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP128" Guid="*">
+            <File Id="FIL128" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.IdentityModel.Tokens.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP129" Guid="*">
+            <File Id="FIL129" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\Microsoft.SqlServer.Server.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP130" Guid="*">
+            <File Id="FIL130" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\RBush.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP131" Guid="*">
+            <File Id="FIL131" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\SixLabors.Fonts.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP132" Guid="*">
+            <File Id="FIL132" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\System.ClientModel.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP133" Guid="*">
+            <File Id="FIL133" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\System.Configuration.ConfigurationManager.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP134" Guid="*">
+            <File Id="FIL134" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\System.Data.Odbc.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP135" Guid="*">
+            <File Id="FIL135" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\System.Data.OleDb.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP136" Guid="*">
+            <File Id="FIL136" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\System.Diagnostics.DiagnosticSource.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP137" Guid="*">
+            <File Id="FIL137" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\System.Diagnostics.PerformanceCounter.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP138" Guid="*">
+            <File Id="FIL138" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\System.IdentityModel.Tokens.Jwt.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP139" Guid="*">
+            <File Id="FIL139" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\System.IO.Packaging.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP140" Guid="*">
+            <File Id="FIL140" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\System.Memory.Data.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP141" Guid="*">
+            <File Id="FIL141" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\System.Runtime.Caching.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP142" Guid="*">
+            <File Id="FIL142" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\System.Security.Cryptography.ProtectedData.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP143" Guid="*">
+            <File Id="FIL143" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\System.Text.Encoding.CodePages.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP144" Guid="*">
+            <File Id="FIL144" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\System.Text.Encodings.Web.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="CMP145" Guid="*">
+            <File Id="FIL145" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\System.Text.Json.dll" KeyPath="yes" />
+          </Component>
+          <Directory Id="DIR37" Name="de">
+            <Component Id="CMP146" Guid="*">
+              <File Id="FIL146" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\de\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+            </Component>
+          </Directory>
+          <Directory Id="DIR38" Name="es">
+            <Component Id="CMP147" Guid="*">
+              <File Id="FIL147" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\es\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+            </Component>
+          </Directory>
+          <Directory Id="DIR39" Name="fr">
+            <Component Id="CMP148" Guid="*">
+              <File Id="FIL148" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\fr\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+            </Component>
+          </Directory>
+          <Directory Id="DIR40" Name="it">
+            <Component Id="CMP149" Guid="*">
+              <File Id="FIL149" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\it\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+            </Component>
+          </Directory>
+          <Directory Id="DIR41" Name="ja">
+            <Component Id="CMP150" Guid="*">
+              <File Id="FIL150" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\ja\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+            </Component>
+          </Directory>
+          <Directory Id="DIR42" Name="ko">
+            <Component Id="CMP151" Guid="*">
+              <File Id="FIL151" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\ko\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+            </Component>
+          </Directory>
+          <Directory Id="DIR43" Name="pt-BR">
+            <Component Id="CMP152" Guid="*">
+              <File Id="FIL152" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\pt-BR\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+            </Component>
+          </Directory>
+          <Directory Id="DIR44" Name="ru">
+            <Component Id="CMP153" Guid="*">
+              <File Id="FIL153" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\ru\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+            </Component>
+          </Directory>
+          <Directory Id="DIR45" Name="zh-Hans">
+            <Component Id="CMP154" Guid="*">
+              <File Id="FIL154" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\zh-Hans\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+            </Component>
+          </Directory>
+          <Directory Id="DIR46" Name="zh-Hant">
+            <Component Id="CMP155" Guid="*">
+              <File Id="FIL155" Source="E:\checador 2.0\dist\Checador-RH-20260317\win-x86\zh-Hant\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+            </Component>
+          </Directory>
+        </Directory>
+        <Directory Id="DIR47" Name="zh-Hans">
+          <Component Id="CMP156" Guid="*">
+            <File Id="FIL156" Source="E:\checador 2.0\dist\Checador-RH-20260317\zh-Hans\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+          </Component>
+        </Directory>
+        <Directory Id="DIR48" Name="zh-Hant">
+          <Component Id="CMP157" Guid="*">
+            <File Id="FIL157" Source="E:\checador 2.0\dist\Checador-RH-20260317\zh-Hant\Microsoft.Data.SqlClient.resources.dll" KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+    <Icon Id="AppIcon" SourceFile="E:\checador 2.0\dist\Checador-RH-20260317\Checador.Desktop.exe" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Feature Id="MainFeature" Title="Checador RH" Level="1">
+      <ComponentRef Id="CMP1" />
+      <ComponentRef Id="CMP2" />
+      <ComponentRef Id="CMP3" />
+      <ComponentRef Id="CMP4" />
+      <ComponentRef Id="CMP5" />
+      <ComponentRef Id="CMP6" />
+      <ComponentRef Id="CMP7" />
+      <ComponentRef Id="CMP8" />
+      <ComponentRef Id="CMP9" />
+      <ComponentRef Id="CMP10" />
+      <ComponentRef Id="CMP11" />
+      <ComponentRef Id="CMP12" />
+      <ComponentRef Id="CMP13" />
+      <ComponentRef Id="CMP14" />
+      <ComponentRef Id="CMP15" />
+      <ComponentRef Id="CMP16" />
+      <ComponentRef Id="CMP17" />
+      <ComponentRef Id="CMP18" />
+      <ComponentRef Id="CMP19" />
+      <ComponentRef Id="CMP20" />
+      <ComponentRef Id="CMP21" />
+      <ComponentRef Id="CMP22" />
+      <ComponentRef Id="CMP23" />
+      <ComponentRef Id="CMP24" />
+      <ComponentRef Id="CMP25" />
+      <ComponentRef Id="CMP26" />
+      <ComponentRef Id="CMP27" />
+      <ComponentRef Id="CMP28" />
+      <ComponentRef Id="CMP29" />
+      <ComponentRef Id="CMP30" />
+      <ComponentRef Id="CMP31" />
+      <ComponentRef Id="CMP32" />
+      <ComponentRef Id="CMP33" />
+      <ComponentRef Id="CMP34" />
+      <ComponentRef Id="CMP35" />
+      <ComponentRef Id="CMP36" />
+      <ComponentRef Id="CMP37" />
+      <ComponentRef Id="CMP38" />
+      <ComponentRef Id="CMP39" />
+      <ComponentRef Id="CMP40" />
+      <ComponentRef Id="CMP41" />
+      <ComponentRef Id="CMP42" />
+      <ComponentRef Id="CMP43" />
+      <ComponentRef Id="CMP44" />
+      <ComponentRef Id="CMP45" />
+      <ComponentRef Id="CMP46" />
+      <ComponentRef Id="CMP47" />
+      <ComponentRef Id="CMP48" />
+      <ComponentRef Id="CMP49" />
+      <ComponentRef Id="CMP50" />
+      <ComponentRef Id="CMP51" />
+      <ComponentRef Id="CMP52" />
+      <ComponentRef Id="CMP53" />
+      <ComponentRef Id="CMP54" />
+      <ComponentRef Id="CMP55" />
+      <ComponentRef Id="CMP56" />
+      <ComponentRef Id="CMP57" />
+      <ComponentRef Id="CMP58" />
+      <ComponentRef Id="CMP59" />
+      <ComponentRef Id="CMP60" />
+      <ComponentRef Id="CMP61" />
+      <ComponentRef Id="CMP62" />
+      <ComponentRef Id="CMP63" />
+      <ComponentRef Id="CMP64" />
+      <ComponentRef Id="CMP65" />
+      <ComponentRef Id="CMP66" />
+      <ComponentRef Id="CMP67" />
+      <ComponentRef Id="CMP68" />
+      <ComponentRef Id="CMP69" />
+      <ComponentRef Id="CMP70" />
+      <ComponentRef Id="CMP71" />
+      <ComponentRef Id="CMP72" />
+      <ComponentRef Id="CMP73" />
+      <ComponentRef Id="CMP74" />
+      <ComponentRef Id="CMP75" />
+      <ComponentRef Id="CMP76" />
+      <ComponentRef Id="CMP77" />
+      <ComponentRef Id="CMP78" />
+      <ComponentRef Id="CMP79" />
+      <ComponentRef Id="CMP80" />
+      <ComponentRef Id="CMP81" />
+      <ComponentRef Id="CMP82" />
+      <ComponentRef Id="CMP83" />
+      <ComponentRef Id="CMP84" />
+      <ComponentRef Id="CMP85" />
+      <ComponentRef Id="CMP86" />
+      <ComponentRef Id="CMP87" />
+      <ComponentRef Id="CMP88" />
+      <ComponentRef Id="CMP89" />
+      <ComponentRef Id="CMP90" />
+      <ComponentRef Id="CMP91" />
+      <ComponentRef Id="CMP92" />
+      <ComponentRef Id="CMP93" />
+      <ComponentRef Id="CMP94" />
+      <ComponentRef Id="CMP95" />
+      <ComponentRef Id="CMP96" />
+      <ComponentRef Id="CMP97" />
+      <ComponentRef Id="CMP98" />
+      <ComponentRef Id="CMP99" />
+      <ComponentRef Id="CMP100" />
+      <ComponentRef Id="CMP101" />
+      <ComponentRef Id="CMP102" />
+      <ComponentRef Id="CMP103" />
+      <ComponentRef Id="CMP104" />
+      <ComponentRef Id="CMP105" />
+      <ComponentRef Id="CMP106" />
+      <ComponentRef Id="CMP107" />
+      <ComponentRef Id="CMP108" />
+      <ComponentRef Id="CMP109" />
+      <ComponentRef Id="CMP110" />
+      <ComponentRef Id="CMP111" />
+      <ComponentRef Id="CMP112" />
+      <ComponentRef Id="CMP113" />
+      <ComponentRef Id="CMP114" />
+      <ComponentRef Id="CMP115" />
+      <ComponentRef Id="CMP116" />
+      <ComponentRef Id="CMP117" />
+      <ComponentRef Id="CMP118" />
+      <ComponentRef Id="CMP119" />
+      <ComponentRef Id="CMP120" />
+      <ComponentRef Id="CMP121" />
+      <ComponentRef Id="CMP122" />
+      <ComponentRef Id="CMP123" />
+      <ComponentRef Id="CMP124" />
+      <ComponentRef Id="CMP125" />
+      <ComponentRef Id="CMP126" />
+      <ComponentRef Id="CMP127" />
+      <ComponentRef Id="CMP128" />
+      <ComponentRef Id="CMP129" />
+      <ComponentRef Id="CMP130" />
+      <ComponentRef Id="CMP131" />
+      <ComponentRef Id="CMP132" />
+      <ComponentRef Id="CMP133" />
+      <ComponentRef Id="CMP134" />
+      <ComponentRef Id="CMP135" />
+      <ComponentRef Id="CMP136" />
+      <ComponentRef Id="CMP137" />
+      <ComponentRef Id="CMP138" />
+      <ComponentRef Id="CMP139" />
+      <ComponentRef Id="CMP140" />
+      <ComponentRef Id="CMP141" />
+      <ComponentRef Id="CMP142" />
+      <ComponentRef Id="CMP143" />
+      <ComponentRef Id="CMP144" />
+      <ComponentRef Id="CMP145" />
+      <ComponentRef Id="CMP146" />
+      <ComponentRef Id="CMP147" />
+      <ComponentRef Id="CMP148" />
+      <ComponentRef Id="CMP149" />
+      <ComponentRef Id="CMP150" />
+      <ComponentRef Id="CMP151" />
+      <ComponentRef Id="CMP152" />
+      <ComponentRef Id="CMP153" />
+      <ComponentRef Id="CMP154" />
+      <ComponentRef Id="CMP155" />
+      <ComponentRef Id="CMP156" />
+      <ComponentRef Id="CMP157" />
+    </Feature>
+  </Package>
+</Wix>
