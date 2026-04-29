@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
 namespace Checador.Infrastructure.Excel;
@@ -886,11 +887,16 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
             try
             {
                 using var fs = new FileStream(templatePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                using var temp = new MemoryStream();
-                fs.CopyTo(temp);
-                temp.Position = 0;
+                using var raw = new MemoryStream();
+                fs.CopyTo(raw);
+                raw.Position = 0;
 
-                var workbookStream = new MemoryStream(temp.ToArray());
+                // Las fórmulas compartidas (shared formulas) de la plantilla causan que
+                // ClosedXML reescriba las celdas al guardar, ignorando los valores que
+                // se escriben por código. Se eliminan todas las fórmulas del XML del
+                // worksheet antes de cargar, para que ClosedXML trate cada celda como
+                // valor puro. Los valores que escribimos luego nunca serán sobreescritos.
+                var workbookStream = StripWorksheetFormulas(raw);
                 return new XLWorkbook(workbookStream);
             }
             catch (IOException ex)
@@ -902,6 +908,47 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
         }
 
         return new XLWorkbook();
+    }
+
+    // Patrón para elementos <f .../> y <f ...>...</f> en OOXML worksheet XML.
+    // Se usa para eliminar todas las fórmulas antes de cargar con ClosedXML,
+    // evitando que fórmulas compartidas (shared formulas) sobreescriban valores escritos por código.
+    private static readonly Regex _formulaElementPattern =
+        new(@"<f\b[^>]*/?>(?:[\s\S]*?</f>)?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static MemoryStream StripWorksheetFormulas(MemoryStream source)
+    {
+        var output = new MemoryStream();
+        source.Position = 0;
+
+        using (var srcZip = new ZipArchive(source, ZipArchiveMode.Read, leaveOpen: true))
+        using (var dstZip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var entry in srcZip.Entries)
+            {
+                var newEntry = dstZip.CreateEntry(entry.FullName, CompressionLevel.Fastest);
+                using var srcStream = entry.Open();
+                using var dstStream = newEntry.Open();
+
+                // Sólo procesar XMLs de hojas de cálculo
+                if (entry.FullName.StartsWith("xl/worksheets/", StringComparison.OrdinalIgnoreCase)
+                    && entry.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+                {
+                    using var reader = new StreamReader(srcStream, Encoding.UTF8);
+                    var xml = reader.ReadToEnd();
+                    xml = _formulaElementPattern.Replace(xml, string.Empty);
+                    var bytes = Encoding.UTF8.GetBytes(xml);
+                    dstStream.Write(bytes, 0, bytes.Length);
+                }
+                else
+                {
+                    srcStream.CopyTo(dstStream);
+                }
+            }
+        }
+
+        output.Position = 0;
+        return output;
     }
 
     private static void WriteHeaders(IXLWorksheet ws)

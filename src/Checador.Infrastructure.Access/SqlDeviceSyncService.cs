@@ -87,11 +87,190 @@ public sealed class SqlDeviceSyncService
         var employees = await _directSource.GetEmployeesAsync(cancellationToken);
         var punches = await _directSource.GetPunchesAsync(null, from, to, cancellationToken);
         var sqlEmployeesForMirror = await GetSqlEmployeesAsync(cancellationToken);
+        var mirrorEmployees = sqlEmployeesForMirror
+            .Select(kvp => new EmployeeInfo(kvp.Key, kvp.Value.Name))
+            .ToList();
         var mirrorMeta = sqlEmployeesForMirror.ToDictionary(
             kvp => kvp.Key,
             kvp => (kvp.Value.PervasiveDept, kvp.Value.PervasiveShift));
 
-        return await _pervasiveMirror.BuildPreviewAsync(employees, punches, mirrorMeta, cancellationToken);
+        return await _pervasiveMirror.BuildPreviewAsync(mirrorEmployees, punches, mirrorMeta, cancellationToken);
+    }
+
+    public async Task<PervasiveNightShiftCleanupResult> RunPervasiveNightShiftHistoricalCleanupAsync(
+        DateTime fromDate,
+        DateTime toDate,
+        int? userId = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureReadyAsync(cancellationToken);
+
+        var from = fromDate.Date;
+        var to = toDate.Date;
+        if (from > to)
+        {
+            throw new InvalidOperationException("Rango inválido para limpieza nocturna. La fecha inicial no puede ser mayor a la final.");
+        }
+
+        if (_pervasiveMirror is null || !_pervasiveMirror.IsEnabled)
+        {
+            return new PervasiveNightShiftCleanupResult(
+                false,
+                from,
+                to,
+                userId,
+                0,
+                0,
+                false,
+                0,
+                0,
+                "Espejo Pervasive deshabilitado.",
+                "Limpieza nocturna no ejecutada: espejo Pervasive deshabilitado.");
+        }
+
+        const int maxRows = 120000;
+        await using var connection = new SqlConnection(_options.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        var sqlEmployeesForMirror = await GetSqlEmployeesAsync(connection, null, cancellationToken);
+        var mirrorEmployees = sqlEmployeesForMirror
+            .Select(kvp => new EmployeeInfo(kvp.Key, kvp.Value.Name))
+            .ToList();
+        var mirrorMeta = sqlEmployeesForMirror.ToDictionary(
+            kvp => kvp.Key,
+            kvp => (kvp.Value.PervasiveDept, kvp.Value.PervasiveShift));
+
+        var (candidateRows, totalRows) = await GetSqlNightShiftPunchesForCleanupAsync(
+            connection,
+            from,
+            to,
+            userId,
+            maxRows,
+            cancellationToken);
+
+        var targetUsers = new List<int>();
+        if (userId.HasValue && userId.Value > 0)
+        {
+            targetUsers.Add(userId.Value);
+        }
+
+        if (candidateRows.Count == 0 && targetUsers.Count == 0)
+        {
+            return new PervasiveNightShiftCleanupResult(
+                true,
+                from,
+                to,
+                userId,
+                totalRows,
+                0,
+                false,
+                0,
+                0,
+                "Sin marcas candidatas de horario 3.",
+                "Limpieza nocturna completada: sin marcas candidatas de horario 3 en el rango.");
+        }
+
+        var affectedUsers = candidateRows
+            .Select(x => x.UserId)
+            .Distinct()
+            .OrderBy(x => x)
+            .ToList();
+        foreach (var explicitUser in targetUsers)
+        {
+            if (!affectedUsers.Contains(explicitUser))
+            {
+                affectedUsers.Add(explicitUser);
+            }
+        }
+        affectedUsers = affectedUsers.OrderBy(x => x).ToList();
+
+        var totalMirrorInserted = 0;
+        var totalMirrorUpdated = 0;
+        var totalMirrorSkipped = 0;
+        var dayChunkCount = 0;
+        if (candidateRows.Count > 0)
+        {
+            const int chunkDays = 10;
+            var orderedRows = candidateRows
+                .OrderBy(x => x.CheckTime)
+                .ToList();
+            var dayChunks = orderedRows
+                .GroupBy(x => x.CheckTime.Date)
+                .OrderBy(x => x.Key)
+                .Select(x => x.ToList())
+                .Chunk(chunkDays)
+                .ToList();
+            dayChunkCount = dayChunks.Count;
+
+            foreach (var dayChunk in dayChunks)
+            {
+                var chunkRows = dayChunk
+                    .SelectMany(x => x)
+                    .OrderBy(x => x.CheckTime)
+                    .ToList();
+
+                var chunkMirror = await MirrorWithRetriesAsync(
+                    mirrorEmployees,
+                    chunkRows,
+                    mirrorMeta,
+                    cancellationToken);
+
+                totalMirrorInserted += chunkMirror.Inserted;
+                totalMirrorUpdated += chunkMirror.Updated;
+                totalMirrorSkipped += chunkMirror.Skipped;
+            }
+        }
+
+        var deletedSplitRows = await _pervasiveMirror.CleanupNightShiftSplitRowsAsync(
+            from,
+            to,
+            affectedUsers,
+            cancellationToken);
+
+        var canonicalNameByUser = mirrorEmployees
+            .GroupBy(x => x.UserId)
+            .ToDictionary(g => g.Key, g => g.First().EmployeeName);
+
+        var normalizedNameRows = await _pervasiveMirror.NormalizeNightShiftEmployeeNamesAsync(
+            from,
+            to,
+            canonicalNameByUser,
+            affectedUsers,
+            cancellationToken);
+
+        var remainingSplitRows = await _pervasiveMirror.CountNightShiftSplitRowsAsync(
+            from,
+            to,
+            affectedUsers,
+            cancellationToken);
+
+        var mirrorMessage = candidateRows.Count > 0
+            ? $"Espejo nocturno por bloques ({dayChunkCount} corrida(s)). " +
+              $"Insertados={totalMirrorInserted}, actualizados={totalMirrorUpdated}, omitidos={totalMirrorSkipped}. " +
+              $"Nombres normalizados={normalizedNameRows}, renglones partidos pendientes={remainingSplitRows}."
+            : $"Sin marcas SQL candidatas; se ejecutó limpieza directa en Pervasive para USERID(s) {string.Join(", ", affectedUsers)}. " +
+              $"Nombres normalizados={normalizedNameRows}, renglones partidos pendientes={remainingSplitRows}.";
+
+        var truncated = totalRows > maxRows;
+        var message =
+            $"Limpieza nocturna Pervasive ({from:dd/MM/yyyy} - {to:dd/MM/yyyy}). " +
+            $"Marcas candidatas={totalRows}, procesadas={candidateRows.Count}, usuarios={affectedUsers.Count}, " +
+            $"renglones huérfanos eliminados={deletedSplitRows}. " +
+            (truncated ? $"Aviso: se aplicó tope de {maxRows} marcas en esta corrida. " : string.Empty) +
+            mirrorMessage;
+
+        return new PervasiveNightShiftCleanupResult(
+            true,
+            from,
+            to,
+            userId,
+            totalRows,
+            candidateRows.Count,
+            truncated,
+            affectedUsers.Count,
+            deletedSplitRows,
+            mirrorMessage,
+            message);
     }
 
     public async Task<SqlSyncRunResult> ImportSnapshotAsync(
@@ -229,10 +408,13 @@ public sealed class SqlDeviceSyncService
                     }
 
                     var sqlEmployeesForMirror = await GetSqlEmployeesAsync(connection, tx, cancellationToken);
+                    var mirrorEmployees = sqlEmployeesForMirror
+                        .Select(kvp => new EmployeeInfo(kvp.Key, kvp.Value.Name))
+                        .ToList();
                     var mirrorMeta = sqlEmployeesForMirror.ToDictionary(
                         kvp => kvp.Key,
                         kvp => (kvp.Value.PervasiveDept, kvp.Value.PervasiveShift));
-                    var mirror = await MirrorWithRetriesAsync(employees, mirrorPunches, mirrorMeta, cancellationToken);
+                    var mirror = await MirrorWithRetriesAsync(mirrorEmployees, mirrorPunches, mirrorMeta, cancellationToken);
                     mirrorMessage = $"Reconciliacion Pervasive automatica desde {reconciliationFrom:dd-MM-yyyy}. {mirror.Message}";
                 }
                 catch (Exception mirrorEx)
@@ -242,6 +424,9 @@ public sealed class SqlDeviceSyncService
                         try
                         {
                             var sqlEmployeesForMirror = await GetSqlEmployeesAsync(connection, tx, cancellationToken);
+                            var mirrorEmployees = sqlEmployeesForMirror
+                                .Select(kvp => new EmployeeInfo(kvp.Key, kvp.Value.Name))
+                                .ToList();
                             var mirrorMeta = sqlEmployeesForMirror.ToDictionary(
                                 kvp => kvp.Key,
                                 kvp => (kvp.Value.PervasiveDept, kvp.Value.PervasiveShift));
@@ -250,7 +435,7 @@ public sealed class SqlDeviceSyncService
                                 ? mirrorPunches
                                 : (insertedPunches.Count > 0 ? insertedPunches : punches);
                             var reducedPunches = BuildRecentMirrorSubset(reducedSource, maxGroups: 40);
-                            var fallbackMirror = await MirrorWithRetriesAsync(employees, reducedPunches, mirrorMeta, cancellationToken);
+                            var fallbackMirror = await MirrorWithRetriesAsync(mirrorEmployees, reducedPunches, mirrorMeta, cancellationToken);
                             mirrorMessage = $"Espejo Pervasive parcial por contingencia (timeout en lote completo). {fallbackMirror.Message}";
                         }
                         catch (Exception)
@@ -258,6 +443,9 @@ public sealed class SqlDeviceSyncService
                             try
                             {
                                 var sqlEmployeesForMirror = await GetSqlEmployeesAsync(connection, tx, cancellationToken);
+                                var mirrorEmployees = sqlEmployeesForMirror
+                                    .Select(kvp => new EmployeeInfo(kvp.Key, kvp.Value.Name))
+                                    .ToList();
                                 var mirrorMeta = sqlEmployeesForMirror.ToDictionary(
                                     kvp => kvp.Key,
                                     kvp => (kvp.Value.PervasiveDept, kvp.Value.PervasiveShift));
@@ -267,7 +455,7 @@ public sealed class SqlDeviceSyncService
                                     maxGroups: 8);
 
                                 var fastMirror = await _pervasiveMirror!.MirrorSnapshotFastFallbackAsync(
-                                    employees,
+                                    mirrorEmployees,
                                     ultraReducedPunches,
                                     mirrorMeta,
                                     cancellationToken);
@@ -376,9 +564,9 @@ public sealed class SqlDeviceSyncService
                     throw new InvalidOperationException("La fecha/hora de la marca manual es obligatoria.");
                 }
 
-                if (entry.InOutMode is not null && entry.InOutMode is not (0 or 1))
+                if (entry.InOutMode is not null && entry.InOutMode is not (0 or 1 or 2 or 3))
                 {
-                    throw new InvalidOperationException("InOutMode invalido. Usa 0=entrada, 1=salida o sin modo.");
+                    throw new InvalidOperationException("InOutMode invalido. Usa 0=entrada, 1=salida, 2=salida comida, 3=entrada comida o sin modo.");
                 }
 
                 return new PunchRecord(userId, normalizedName, entry.CheckTime, entry.InOutMode);
@@ -707,7 +895,8 @@ SELECT TOP (@TopRows)
     p.UserId,
     COALESCE(NULLIF(e.EmployeeName, ''), p.EmployeeName) AS EmployeeName,
     p.CheckTime,
-    p.Source
+    p.Source,
+    p.InOutMode
 FROM dbo.PunchLogs p
 LEFT JOIN dbo.Employees e ON e.UserId = p.UserId
 WHERE p.CheckTime >= @FromDate
@@ -729,7 +918,8 @@ ORDER BY CheckTime DESC;";
                 reader.GetInt32(0),
                 reader.GetString(1),
                 reader.GetDateTime(2),
-                reader.GetString(3)));
+                reader.GetString(3),
+                await reader.IsDBNullAsync(4, cancellationToken) ? (int?)null : reader.GetInt32(4)));
         }
 
         return rows;
@@ -2061,6 +2251,90 @@ ORDER BY p.CheckTime DESC;";
         }
 
         return rows;
+    }
+
+    private static async Task<(List<PunchRecord> Rows, int TotalRows)> GetSqlNightShiftPunchesForCleanupAsync(
+        SqlConnection connection,
+        DateTime fromDate,
+        DateTime toDate,
+        int? userId,
+        int maxRows,
+        CancellationToken cancellationToken)
+    {
+        var explicitUserId = userId.GetValueOrDefault();
+        var forceNightForExplicitUser = explicitUserId > 0;
+
+        const string whereNightShift = @"
+(
+    e.WorkScheduleCode = 3
+    OR LEFT(LTRIM(RTRIM(ISNULL(e.PervasiveShift, ''))), 1) = '3'
+)";
+
+        var baseSql = $@"
+FROM dbo.PunchLogs p
+INNER JOIN dbo.Employees e ON e.UserId = p.UserId
+WHERE p.CheckTime >= @FromDate
+  AND p.CheckTime < @ToDate
+  AND (
+        (@UserId > 0 AND p.UserId = @UserId)
+        OR {whereNightShift}
+      )
+  AND (@UserId <= 0 OR p.UserId = @UserId)";
+
+        var countSql = $"SELECT COUNT(1) {baseSql};";
+        await using var countCmd = new SqlCommand(countSql, connection);
+        countCmd.Parameters.AddWithValue("@FromDate", fromDate);
+        countCmd.Parameters.AddWithValue("@ToDate", toDate.AddDays(1));
+        countCmd.Parameters.AddWithValue("@UserId", userId.GetValueOrDefault());
+        var totalObj = await countCmd.ExecuteScalarAsync(cancellationToken);
+        var totalRows = totalObj is null or DBNull ? 0 : Convert.ToInt32(totalObj);
+
+        var dataSql = $@"
+SELECT TOP (@TopRows)
+    p.UserId,
+    COALESCE(NULLIF(e.EmployeeName, ''), p.EmployeeName) AS EmployeeName,
+    p.CheckTime,
+    p.InOutMode,
+    e.WorkScheduleCode,
+    CAST(CASE
+        WHEN @ForceNight = 1
+          OR e.WorkScheduleCode = 3
+          OR LEFT(LTRIM(RTRIM(ISNULL(e.PervasiveShift, ''))), 1) = '3'
+        THEN 1 ELSE 0 END AS bit) AS IsNightShift
+{baseSql}
+ORDER BY p.CheckTime DESC;";
+
+        await using var cmd = new SqlCommand(dataSql, connection);
+        cmd.Parameters.AddWithValue("@TopRows", Math.Max(1, maxRows));
+        cmd.Parameters.AddWithValue("@FromDate", fromDate);
+        cmd.Parameters.AddWithValue("@ToDate", toDate.AddDays(1));
+        cmd.Parameters.AddWithValue("@UserId", explicitUserId);
+        cmd.Parameters.AddWithValue("@ForceNight", forceNightForExplicitUser ? 1 : 0);
+
+        var rows = new List<PunchRecord>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var workScheduleCode = await reader.IsDBNullAsync(4, cancellationToken) ? (int?)null : reader.GetInt32(4);
+            var isNightShift = !await reader.IsDBNullAsync(5, cancellationToken) && reader.GetBoolean(5);
+            if (forceNightForExplicitUser)
+            {
+                workScheduleCode ??= 3;
+                isNightShift = true;
+            }
+
+            rows.Add(new PunchRecord(
+                reader.GetInt32(0),
+                reader.GetString(1),
+                reader.GetDateTime(2),
+                await reader.IsDBNullAsync(3, cancellationToken) ? (int?)null : reader.GetInt32(3),
+                workScheduleCode,
+                null,
+                null,
+                isNightShift));
+        }
+
+        return (rows, totalRows);
     }
 
     private static void ValidateEmployeeReassignInput(int oldUserId, int newUserId, DateTime fromDate, DateTime toDate)

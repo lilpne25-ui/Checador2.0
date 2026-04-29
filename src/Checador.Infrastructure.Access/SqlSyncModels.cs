@@ -26,7 +26,8 @@ public sealed record SqlPunchHistoryItem(
     int UserId,
     string EmployeeName,
     DateTime CheckTime,
-    string Source);
+    string Source,
+    int? InOutMode = null);
 
 public sealed record ManualPunchEntry(
     DateTime CheckTime,
@@ -131,4 +132,17 @@ public sealed record EmployeeReassignApplyResult(
     bool PervasiveEnabled,
     int PervasiveUpdatedRows,
     int PervasiveSkippedConflicts,
+    string Message);
+
+public sealed record PervasiveNightShiftCleanupResult(
+    bool Enabled,
+    DateTime FromDate,
+    DateTime ToDate,
+    int? UserId,
+    int CandidatePunches,
+    int ProcessedPunches,
+    bool TruncatedByTop,
+    int AffectedUsers,
+    int DeletedSplitRows,
+    string MirrorMessage,
     string Message);

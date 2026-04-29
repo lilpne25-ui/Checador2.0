@@ -16,6 +16,17 @@ var configuration = new ConfigurationBuilder()
 
 var appConfig = configuration.Get<AppConfiguration>() ?? new AppConfiguration();
 
+var localJsonConfiguration = new ConfigurationBuilder()
+    .SetBasePath(AppContext.BaseDirectory)
+    .AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: false)
+    .Build();
+
+var localSqlConnectionString = localJsonConfiguration["Sql:ConnectionString"];
+if (!string.IsNullOrWhiteSpace(localSqlConnectionString))
+{
+    appConfig.Sql.ConnectionString = localSqlConnectionString;
+}
+
 var startupAccessOptions = new AccessConnectionOptions
 {
     ConnectionString = appConfig.Access.ConnectionString,
@@ -129,7 +140,10 @@ services.AddSingleton(new AttendanceProcessingOptions
     NightShiftStandardHours = appConfig.Processing.NightShiftStandardHours,
     Schedule1ExtraCountFromHour = appConfig.Processing.Schedule1ExtraCountFromHour,
     Schedule2ExtraCountFromHour = appConfig.Processing.Schedule2ExtraCountFromHour,
-    Schedule3ExtraCountFromHour = appConfig.Processing.Schedule3ExtraCountFromHour
+    Schedule3ExtraCountFromHour = appConfig.Processing.Schedule3ExtraCountFromHour,
+    Schedule1ExtraMaxHours = appConfig.Processing.Schedule1ExtraMaxHours,
+    Schedule2ExtraMaxHours = appConfig.Processing.Schedule2ExtraMaxHours,
+    Schedule3ExtraMaxHours = appConfig.Processing.Schedule3ExtraMaxHours
 });
 
 services.AddSingleton(new ExcelReportOptions

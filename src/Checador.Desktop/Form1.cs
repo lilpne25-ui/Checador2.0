@@ -9,6 +9,7 @@ namespace Checador.Desktop;
 
 public partial class Form1 : Form
 {
+    private const string InternalTemplateFileName = "formato.xlsx";
     private readonly AttendanceReportOrchestrator _orchestrator;
     private readonly IAttendanceDataSource _attendanceDataSource;
     private readonly Checador.Domain.Interfaces.IAttendanceDiagnostics _diagnostics;
@@ -41,7 +42,11 @@ public partial class Form1 : Form
     private void InitializeDefaults()
     {
         txtOutputDirectory.Text = _configuration.Report.OutputDirectory;
-        txtTemplatePath.Text = _configuration.Report.TemplatePath ?? string.Empty;
+        txtTemplatePath.Text = InternalTemplateFileName;
+        txtTemplatePath.ReadOnly = true;
+        lblTemplate.Visible = false;
+        txtTemplatePath.Visible = false;
+        btnBrowseTemplate.Visible = false;
         dtpStart.Value = DateTime.Today.AddDays(-7);
         dtpEnd.Value = DateTime.Today;
         cmbTheme.SelectedIndex = 0;
@@ -312,7 +317,7 @@ public partial class Form1 : Form
             FechaInicio = dtpStart.Value.Date,
             FechaFin = dtpEnd.Value.Date.AddDays(1).AddTicks(-1),
             OutputDirectory = txtOutputDirectory.Text.Trim(),
-            TemplatePath = ResolveTemplatePath(txtTemplatePath.Text),
+            TemplatePath = ResolveInternalTemplatePath(),
             Company = _configuration.Report.CompanyName
         };
     }
@@ -323,20 +328,18 @@ public partial class Form1 : Form
     private static string GetReportFormatLabel(ReportOutputFormat format)
         => format == ReportOutputFormat.Pdf ? "PDF" : "Excel";
 
-    private static string? ResolveTemplatePath(string? rawPath)
+    private static string ResolveInternalTemplatePath()
     {
-        if (string.IsNullOrWhiteSpace(rawPath))
+        var internalPath = Path.Combine(AppContext.BaseDirectory, InternalTemplateFileName);
+        if (!File.Exists(internalPath))
         {
-            return null;
+            throw new FileNotFoundException(
+                $"No se encontró la plantilla interna '{InternalTemplateFileName}' en el directorio de la aplicación. " +
+                "Este archivo lo define desarrollo y debe incluirse en el paquete de despliegue.",
+                internalPath);
         }
 
-        var trimmed = rawPath.Trim();
-        if (Path.IsPathRooted(trimmed))
-        {
-            return trimmed;
-        }
-
-        return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, trimmed));
+        return internalPath;
     }
 
     private async Task<ReportRunSummary> GenerateForAllEmployeesWithRhSummaryAsync(
@@ -838,7 +841,6 @@ public partial class Form1 : Form
         btnPreview.Enabled = !busy;
         btnTestConnection.Enabled = !busy;
         btnBrowseOutput.Enabled = !busy;
-        btnBrowseTemplate.Enabled = !busy;
         btnAdminSql.Enabled = !busy;
         chkAllEmployees.Enabled = !busy;
         cmbEmployee.Enabled = !busy && !chkAllEmployees.Checked;

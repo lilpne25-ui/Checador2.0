@@ -27,6 +27,325 @@
 
 ## Historial de cambios recientes
 
+### 2026-04-13 · Hotfix anti falso-entrada (marca única vespertina) en Checador + SyncAgent
+
+**Incidencia reportada**
+
+- Caso de empleado con marca única en la tarde (ej. `18:14`) sin entrada previa: el sistema podía interpretarla como `Entrada` cuando en realidad era `Salida`.
+
+**Causa probable**
+
+- Cuando la marca llega sin `InOutMode` (`m:N`) y es única en el día, el fallback cronológico base asumía primera marca = entrada.
+
+**Corrección aplicada**
+
+- `src/Checador.Application/AttendanceProcessor.cs`
+  - En `MapPunchesForIncomplete(...)` se agregó validación para `ordered.Count == 1` sin modo:
+    - si no es contexto nocturno y la marca es `>= 12:00`, ahora se mapea como `Salida` (queda `MISSING_ENTRY`) y ya no como `Entrada`.
+- `src/Checador.Infrastructure.Access/PervasiveAttendanceMirrorService.cs`
+  - En `ResolveMirrorEntryPunch(...)`, para marca única sin modo en contexto diurno vespertino (`>= 12:00`), ahora devuelve `null`.
+  - Esto evita que el espejo Pervasive abra una jornada con entrada dudosa desde `SyncAgent`.
+
+**Validación**
+
+- Compilación Release exitosa de proyectos impactados:
+  - `Checador.Application`
+  - `Checador.Infrastructure.Access`
+- Verificación de errores en archivos modificados: sin errores.
+
+**Addendum (mismo día, ajuste de robustez)**
+
+- Se detectó un caso residual: marca única vespertina que sí trae `InOutMode` de entrada (`0/3`) podía seguir cayendo en columna `Entrada`.
+- Se endureció la regla en ambos componentes para `ordered.Count == 1`:
+  - si no es turno nocturno y la marca es `>= 12:00`, se trata como **Salida** (en Checador) / se rechaza como entrada (en SyncAgent).
+- Con esto se cubren tanto marcas sin modo como marcas con modo invertido en días incompletos de una sola marca.
+
+### 2026-04-10 · SyncAgent con ventanas horarias (cada 10 minutos)
+
+**Solicitud**
+
+- Ejecutar AutoSync por bloques horarios cada 10 minutos.
+
+**Cambio aplicado**
+
+- `src/Checador.SyncAgent/SyncAgentConfiguration.cs`
+  - Nueva sección `AutoSchedule`:
+    - `Enabled`
+    - `IntervalMinutes`
+    - `PollSeconds`
+    - `Windows[]` (`Start`, `End`)
+- `src/Checador.SyncAgent/SyncAgentForm.cs`
+  - AutoSync ahora soporta ejecución por ventanas horarias.
+  - Se evalúa cada `PollSeconds` y solo corre cuando está dentro de ventana y toca slot de intervalo.
+  - Se evita doble ejecución dentro del mismo slot (`_lastScheduledSlot`).
+- `src/Checador.SyncAgent/Program.cs`
+  - Se registra `SyncAgentConfiguration` completo en DI para uso del formulario.
+- `src/Checador.SyncAgent/appsettings.json`
+  - Se agregó `AutoSchedule` con ventanas:
+    - `05:00-09:00`
+    - `11:00-03:30`
+    - `16:00-22:00`
+  - Intervalo configurado: `10` minutos.
+
+**Validación**
+
+- Build Release de `Checador.SyncAgent` exitoso (0 errores).
+
+### 2026-04-10 · Script operativo para registrar zkemkeeper en otra PC
+
+**Problema**
+
+- En equipos destino aparecía `No se encontró zkemkeeper (CZKEM/ZKEM)` por registro COM incompleto.
+
+**Cambio aplicado**
+
+- Se creó script raíz: `instalar-zkteco-sdk-admin.ps1`
+  - valida estado de ProgID/CLSID (`zkemkeeper.CZKEM`, `zkemkeeper.ZKEM`, `zkemkeeper.ZKEM.1`),
+  - busca `zkemkeeper.dll` (o acepta `-DllPath`),
+  - registra con `regsvr32` x86 (`SysWOW64`),
+  - revalida `InprocServer32` al terminar.
+- Se documentó el uso en `README.md` (sección de requisito especial COM ZKTeco).
+
+**Validación**
+
+- Sintaxis del script validada en PowerShell: `PS1_SYNTAX_OK`.
+
+### 2026-04-10 · Fix timeout SQL por override de entorno (prioridad local garantizada)
+
+**Incidencia reportada**
+
+- `SyncAgent` seguía mostrando timeout SQL en runtime aun cuando `appsettings.local.json` y pruebas ADO.NET directas eran correctas.
+
+**Causa probable consolidada**
+
+- La configuración cargaba variables de entorno `CHECADOR_*` al final, pudiendo sobrescribir `Sql.ConnectionString` del archivo local con un valor viejo del servidor.
+
+**Corrección aplicada**
+
+- Se mantuvo soporte de variables de entorno, pero se forzó prioridad explícita del valor SQL local si existe en `appsettings.local.json`.
+- Archivos actualizados:
+  - `src/Checador.SyncAgent/Program.cs`
+  - `src/Checador.Desktop/Program.cs`
+  - `src/Checador.ConsoleApp/Program.cs`
+- Lógica aplicada:
+  - cargar `appsettings.local.json` en un builder dedicado,
+  - si `Sql:ConnectionString` local tiene valor, reemplazar `appConfig.Sql.ConnectionString` / `cfg.Sql.ConnectionString` antes de construir servicios.
+
+**Validación**
+
+- Build Release exitoso (0 errores) de:
+  - `Checador.SyncAgent`
+  - `Checador.Desktop`
+  - `Checador.ConsoleApp`
+
+**Resultado esperado**
+
+- El ejecutable usa de forma determinística la cadena SQL local del paquete, evitando timeout por overrides de entorno heredados o desactualizados.
+
+### 2026-04-10 · Rotación de credencial MSSQL (SQL Login) + regeneración de EXE
+
+**Solicitud**
+
+- Actualizar la conexión MSSQL a nueva contraseña de SQL Login y regenerar ejecutables (`Checador.Desktop` y `Checador.SyncAgent`).
+
+**Cambio aplicado**
+
+- Se actualizaron cadenas SQL en configuración fuente (base + local):
+  - `src/Checador.Desktop/appsettings.json`
+  - `src/Checador.Desktop/appsettings.local.json`
+  - `src/Checador.SyncAgent/appsettings.json`
+  - `src/Checador.SyncAgent/appsettings.local.json`
+  - `src/Checador.ConsoleApp/appsettings.json`
+  - `src/Checador.ConsoleApp/appsettings.local.json`
+- Formato de conexión aplicado:
+  - `Server=tcp:192.168.1.10,1433;Database=ZKBD;User Id=sa;Password=<rotada>;TrustServerCertificate=True;Connection Timeout=30;`
+
+**Validación**
+
+- Prueba de autenticación ADO.NET con SQL Login: **OK** (`DB=ZKBD`).
+- Build Release exitoso:
+  - `src/Checador.Desktop`
+  - `src/Checador.SyncAgent`
+- Paquetes de entrega actualizados con carpetas completas (no EXE sueltos):
+  - `dist/EXE-ENTREGA-20260410/Checador.Desktop`
+  - `dist/EXE-ENTREGA-20260410/Checador.SyncAgent`
+  - `dist/PAQUETE-APP-20260410/Checador.Desktop`
+  - `dist/PAQUETE-APP-20260410/Checador.SyncAgent`
+
+### 2026-04-10 · Plantilla Excel interna fija (bloqueada para usuario)
+
+**Solicitud**
+
+- Evitar que en la pantalla principal aparezca/sea editable el campo de plantilla Excel.
+- Dejar la plantilla integrada al software para que solo desarrollo pueda cambiarla.
+
+**Cambio aplicado**
+
+- `src/Checador.Desktop/Form1.cs`
+  - Se definió plantilla interna fija: `formato.xlsx`.
+  - `BuildRequestFromUi()` ya no toma la ruta desde `txtTemplatePath`; ahora usa siempre la plantilla interna en `AppContext.BaseDirectory`.
+  - Se ocultaron en runtime los controles de plantilla (`lblTemplate`, `txtTemplatePath`, `btnBrowseTemplate`).
+  - Se eliminó dependencia operativa del usuario para seleccionar plantilla.
+
+**Comportamiento esperado**
+
+- El bloque "Plantilla Excel (formato)" ya no se muestra al usuario final.
+- La generación siempre usa la plantilla interna empaquetada con la app.
+- Solo el desarrollador puede cambiar la plantilla actualizando `formato.xlsx` en el proyecto/despliegue.
+
+### 2026-04-10 · Fix preventivo de conexión SQL por ausencia de `appsettings.local.json` en despliegue
+
+**Incidencia reportada**
+
+- `Checador.SyncAgent` y `Checador.Desktop` mostraron errores de conexión SQL al arrancar/sincronizar (`error 40` / timeout TCP).
+
+**Causa raíz**
+
+- En algunos despliegues, el ejecutable corre sin `appsettings.local.json` junto al `.exe`.
+- Al faltar ese override, se usaba `Sql.ConnectionString` base (`appsettings.json`) que no siempre correspondía al servidor operativo remoto.
+
+**Corrección aplicada**
+
+- Se alineó la cadena SQL por defecto en configuración base hacia el servidor remoto operativo:
+  - `src/Checador.SyncAgent/appsettings.json`
+  - `src/Checador.Desktop/appsettings.json`
+  - `src/Checador.ConsoleApp/appsettings.json`
+- Se alineó también el override local de SQL en:
+  - `src/Checador.SyncAgent/appsettings.local.json`
+  - `src/Checador.Desktop/appsettings.local.json`
+  - `src/Checador.ConsoleApp/appsettings.local.json`
+- Nueva cadena base:
+  - `Server=tcp:192.168.1.10,1433;Database=ZKBD;Trusted_Connection=True;TrustServerCertificate=True;Connection Timeout=30;`
+
+**Validación**
+
+- Prueba de red local con `Test-NetConnection`:
+  - `192.168.1.10:1433` = `TcpTestSucceeded=True`
+  - `TI:1433` = `TcpTestSucceeded=True`
+- Prueba SQL real con ADO.NET:
+  - `User Id=sa` falló (`Login failed for user 'sa'`).
+  - `Trusted_Connection=True` funcionó hacia `TI` y `192.168.1.10` (DB=`ZKBD`).
+- Build Release de `Checador.SyncAgent` exitoso y verificado que ahora sí queda `appsettings.local.json` en `bin\Release\net8.0-windows`.
+
+### 2026-04-08 · Fix puntual: no tomar regreso de comida como entrada inicial (caso USERID 55)
+
+**Incidencia reportada**
+
+- USERID `55`, fecha `2026-03-31`: la marca de regreso de comida (`m:3` a las 14:07) se estaba tomando como `Entrada`.
+- Raw del día: `13:33(m:2) | 14:07(m:3) | 16:44(m:1)`.
+
+**Cambio aplicado**
+
+- `src/Checador.Application/AttendanceProcessor.cs`
+  - En `ResolveEntryPunch(...)` se agregó una regla para días con modo:
+    - si la mejor candidata de entrada es `m:3`,
+    - existe `m:2` previo cercano (<= 120 min),
+    - y hay salida final `m:1` posterior,
+    - entonces **no** se acepta esa `m:3` como entrada inicial (`MISSING_ENTRY`).
+  - Se cuidó el orden de evaluación para no romper fallbacks existentes (marca sin modo temprana o fallback cronológico).
+
+**Validación**
+
+- Auditoría regenerada: `logs/auditoria-marzo-2026-detalle-20260408-135434.csv`.
+- Resultado del caso reportado:
+  - USERID `55` / `2026-03-31` => `Entrada=-`, `SalidaComida=13:33`, `EntradaComida=14:07`, `Salida=16:44`, `Checks=MISSING_ENTRY`.
+  - Ya no aparece comida/regreso como entrada de jornada y las marcas intermedias se conservan en su columna correcta.
+- Control de regresión puntual:
+  - USERID `23` / `2026-03-11` conserva `Entrada=06:41` (marca temprana sin modo), sin falso `MISSING_ENTRY`.
+
+**Build**
+
+- `Checador.Application` compila correctamente en Release.
+
+### 2026-04-09 · Rediseño de alta manual (visual) + modos comida explícitos
+
+**Solicitud de UX/funcionalidad**
+
+- El módulo de alta manual debía permitir capturar explícitamente:
+  - `Entrada (0)`
+  - `Salida comida (2)`
+  - `Entrada comida (3)`
+  - `Salida (1)`
+- Además, mostrar catálogo de empleados y una vista visual tipo tabla para colocar cada marca donde corresponde (sin flujo tipo lista/sugerencia textual).
+
+**Cambios aplicados**
+
+- `src/Checador.Infrastructure.Access/SqlDeviceSyncService.cs`
+  - `InsertManualPunchesAsync(...)` ahora valida `InOutMode` en `{0,1,2,3}` (además de `null`).
+  - `GetHistoryAsync(...)` ahora también devuelve `InOutMode` para que la UI pueda pintar columnas correctas por tipo de marca.
+- `src/Checador.Infrastructure.Access/SqlSyncModels.cs`
+  - `SqlPunchHistoryItem` se amplió con `InOutMode` nullable.
+- `src/Checador.Desktop/SyncAdminForm.cs`
+  - Se rediseñó `PromptManualPunchDataAsync(...)` a formato visual:
+    - catálogo de empleados visible en panel izquierdo,
+    - panel de captura con fecha/hora + botones directos por tipo de marca,
+    - tabla de día estilo reporte (`Entrada`, `Salida comida`, `Entrada comida`, `Salida`, `Estado`),
+    - tabla de marcas existentes del día,
+    - tabla de marcas pendientes por insertar (lote manual editable).
+  - `OpenManualPunchDialogAsync()` ahora maneja confirmación/inserción por lote visual (`BatchEntries`) además de inserción puntual.
+  - `FormatInOutMode(...)` actualizado con etiquetas de comida (`2` y `3`).
+
+**Validación**
+
+- `dotnet build src/Checador.Desktop/Checador.Desktop.csproj -c Release` exitoso.
+- Proyectos compilados en cascada: `Domain`, `Application`, `Infrastructure.Excel`, `Infrastructure.Access`, `Desktop`.
+
+**Aprendizaje operativo**
+
+- Para alta manual RH-operativa, conviene una vista proyectada por columnas de jornada/comida; reduce errores de interpretación frente a listas de texto de faltantes.
+
+### 2026-04-09 · Hotfix runtime UI: `SplitterDistance` inválido al abrir alta manual
+
+**Incidencia reportada**
+
+- Al abrir el módulo de alta manual visual, aparecía:
+  - `SplitterDistance debe estar entre Panel1MinSize y Ancho - Panel2MinSize`.
+
+**Causa raíz**
+
+- En `PromptManualPunchDataAsync(...)`, los `SplitContainer` se inicializaban con `SplitterDistance` fijo antes de tener tamaño real de layout.
+- Con combinaciones de resolución/DPI, ese valor quedaba fuera de rango al construir el formulario.
+
+**Corrección aplicada**
+
+- `src/Checador.Desktop/SyncAdminForm.cs`
+  - Se removió inicialización rígida de `SplitterDistance`.
+  - Se removieron también `PanelMinSize` rígidos en el constructor de los splitters (se aplican después del layout efectivo).
+  - Se redujeron mínimos iniciales para evitar restricciones imposibles en arranque.
+  - Se agregó ajuste seguro `ApplySafeSplitterDistance(...)` para calcular distancia válida en tiempo de ejecución:
+    - al mostrarse el diálogo,
+    - y en eventos `Resize` de ambos splitters.
+  - Se añadió guarda extra para no clamplear cuando `maxDistance < Panel1MinSize` en estados transitorios de layout.
+
+**Validación**
+
+- `dotnet build src/Checador.Desktop/Checador.Desktop.csproj -c Release` exitoso.
+
+**Lección**
+
+- En WinForms con layout dinámico, no fijar `SplitterDistance` rígido en construcción si existen `PanelMinSize`; siempre calcular distancia después del layout efectivo.
+
+### 2026-04-09 · Fix backend alta manual: validación `InOutMode` todavía rechazaba 2/3
+
+**Incidencia reportada**
+
+- Al insertar alta manual visual con marcas de comida, aparecía:
+  - `InOutMode invalido. Usa 0=entrada, 1=salida, 2=salida comida, 3=entrada comida o sin modo.`
+
+**Causa raíz**
+
+- En `SqlDeviceSyncService.InsertManualPunchesAsync(...)` se actualizó el mensaje, pero la condición seguía validando solo `(0 or 1)`.
+
+**Corrección aplicada**
+
+- `src/Checador.Infrastructure.Access/SqlDeviceSyncService.cs`
+  - condición corregida a: `(0 or 1 or 2 or 3)`.
+
+**Validación**
+
+- Build Release exitoso de `Checador.Desktop`.
+- Durante la primera recompilación hubo bloqueo de DLL por proceso abierto (`Checador.Desktop`); se cerró proceso y se recompiló de nuevo correctamente para asegurar despliegue del fix.
+
 ### 2026-04-01 · Regla de horas extra por horario + recálculo operativo marzo
 
 **Qué se cambió**
@@ -54,6 +373,29 @@
   - `OvertimeAuthorized = 1`: **0 empleados**
   - Distribución horarios: `Sched1=29`, `Sched2=13`, `Sched3=0`, `SchedNull=0`
 - Con ese estado, la columna de extra queda en `0.00` para todos en marzo por política vigente.
+
+### 2026-04-01 · Tope máximo de horas extra por horario
+
+**Qué se cambió**
+
+- Se añadió una segunda validación de negocio en `AttendanceProcessor` para limitar la extra final por horario:
+  - Horario 1: máximo `2.4 h`
+  - Horario 2: máximo `2.4 h`
+  - Horario 3: máximo `3.6 h`
+- El tope se aplica al valor final de horas extra para garantizar que no exceda el máximo configurado.
+- Se agregaron nuevas opciones en `Processing`:
+  - `Schedule1ExtraMaxHours`
+  - `Schedule2ExtraMaxHours`
+  - `Schedule3ExtraMaxHours`
+- Se propagaron en Desktop y Console:
+  - `AppConfiguration`
+  - `Program.cs` (inyección de `AttendanceProcessingOptions`)
+  - `appsettings.json`
+
+**Validación técnica**
+
+- `dotnet build Checador.sln -c Debug` ejecutado exitosamente.
+- Resultado: solución completa compila sin errores.
 
 ### 2026-03-31 · Correccion critica de clasificacion + reconciliacion masiva marzo (una sola vez)
 
@@ -1421,3 +1763,21 @@ Usar esta plantilla al cierre del día para decidir si se permite pasar a `Simul
 **Validacion tecnica**
 
 - `dotnet build Checador.sln` completado sin errores.
+
+### 2026-04-27 · Roadmap producto para igualar/superar checador comercial
+
+**Objetivo**
+
+- Definir plan ejecutable por fases para llevar `Checador 2.0` a nivel igual o superior en funciones tipo HR SaaS.
+
+**Cambios aplicados**
+
+- Nuevo documento: `docs/PLAN-PRODUCTO-CHECADOR.md`
+  - Estrategia: conservar core actual y montar capa Web/API.
+  - Backlog P0: incidencias + alertas, horas extra formal, portal colaborador.
+  - Backlog P1: geocerca movil, integracion nomina, dashboard multi-sede.
+  - Criterios de aceptacion, tablero de ejecucion y plan de 12 semanas.
+
+**Resultado**
+
+- Queda plan operativo listo para ejecucion por sprints, con enfoque de producto vendible y validable en piloto real.

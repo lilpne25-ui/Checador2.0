@@ -8,6 +8,7 @@ public sealed class AttendanceProcessor
     private static readonly TimeSpan DayShiftEarliestEntryBoundary = TimeSpan.FromHours(4);
     private const int MinBreakOutAfterEntryMinutes = 90;
     private const int MinBreakOutBeforeExitMinutes = 60;
+    private const int MaxBreakPairGapMinutesForMissingEntry = 120;
     private const int MinChronologicalFallbackSpanMinutes = 240;
     private const int MaxClearlyValidShiftSpanMinutes = 1080;
     private const int MinUnknownEntryFallbackGapMinutes = 180;
@@ -463,9 +464,28 @@ public sealed class AttendanceProcessor
             return (null, null, null, null);
         }
 
+        if (ordered.Count == 1)
+        {
+            var singlePunch = ordered[0];
+            if (ShouldTreatSinglePunchAsExitInDayShift(singlePunch))
+            {
+                return (null, null, null, singlePunch.CheckTime);
+            }
+        }
+
         var hasAnyMode = ordered.Any(x => x.InOutMode.HasValue);
         if (!hasAnyMode)
         {
+            if (ordered.Count == 1)
+            {
+                var singlePunch = ordered[0];
+                var isNightShiftContext = singlePunch.IsNightShift == true || singlePunch.WorkScheduleCode == 3;
+                if (!isNightShiftContext && singlePunch.CheckTime.TimeOfDay >= MiddayBoundary)
+                {
+                    return (null, null, null, singlePunch.CheckTime);
+                }
+            }
+
             return (
                 ordered.Count > 0 ? ordered[0].CheckTime : null,
                 ordered.Count > 1 ? ordered[1].CheckTime : null,
@@ -476,11 +496,22 @@ public sealed class AttendanceProcessor
         var entradaPunch = ResolveEntryPunch(ordered, hasAnyMode);
         if (entradaPunch is null)
         {
+            var salidaComidaSolo = ordered.FirstOrDefault(x => IsBreakOutMode(x.InOutMode));
+            var entradaComidaSolo = salidaComidaSolo is not null
+                ? ordered
+                    .Where(x => x.CheckTime > salidaComidaSolo.CheckTime)
+                    .FirstOrDefault(x => IsBreakInMode(x.InOutMode))
+                : null;
+
             var salidaSolo = ordered
                 .FirstOrDefault(x => IsFinalOutMode(x.InOutMode))
                 ?? ordered.LastOrDefault(x => IsOutMode(x.InOutMode));
 
-            return (null, null, null, salidaSolo?.CheckTime);
+            return (
+                null,
+                salidaComidaSolo?.CheckTime,
+                entradaComidaSolo?.CheckTime,
+                salidaSolo?.CheckTime);
         }
 
         var salidaComidaPunch = ordered
@@ -626,9 +657,24 @@ public sealed class AttendanceProcessor
             }
         }
 
-        return rawExtraHours > 0m
-            ? RoundHours(rawExtraHours)
-            : 0m;
+        if (rawExtraHours <= 0m)
+        {
+            return 0m;
+        }
+
+        var roundedExtraHours = RoundHours(rawExtraHours);
+        if (roundedExtraHours <= 0m)
+        {
+            return 0m;
+        }
+
+        var maxExtraHours = ResolveExtraHoursCap(entryPunch);
+        if (maxExtraHours.HasValue && roundedExtraHours > maxExtraHours.Value)
+        {
+            roundedExtraHours = maxExtraHours.Value;
+        }
+
+        return roundedExtraHours;
     }
 
     private DateTime? ResolveExtraCountingStartTime(PunchRecord entryPunch, DateOnly workDate)
@@ -652,6 +698,24 @@ public sealed class AttendanceProcessor
         }
 
         return workDate.ToDateTime(TimeOnly.FromTimeSpan(TimeSpan.FromHours(hour)));
+    }
+
+    private decimal? ResolveExtraHoursCap(PunchRecord entryPunch)
+    {
+        if (!entryPunch.WorkScheduleCode.HasValue)
+        {
+            return null;
+        }
+
+        var cap = entryPunch.WorkScheduleCode.Value switch
+        {
+            1 => _options.Schedule1ExtraMaxHours,
+            2 => _options.Schedule2ExtraMaxHours,
+            3 => _options.Schedule3ExtraMaxHours,
+            _ => 0m
+        };
+
+        return cap > 0m ? cap : null;
     }
 
     private decimal RoundHours(decimal hours)
@@ -778,6 +842,24 @@ public sealed class AttendanceProcessor
                 && ShouldUseChronologicalEntryFallback(ordered, firstPunch, modeBasedEntry))
             {
                 return firstPunch;
+            }
+
+            if (modeBasedEntry.InOutMode == 3)
+            {
+                var breakOutBeforeBreakIn = ordered
+                    .Where(x => x.CheckTime < modeBasedEntry.CheckTime)
+                    .LastOrDefault(x => IsBreakOutMode(x.InOutMode));
+
+                if (breakOutBeforeBreakIn is not null)
+                {
+                    var breakPairGapMinutes = (modeBasedEntry.CheckTime - breakOutBeforeBreakIn.CheckTime).TotalMinutes;
+                    var hasFinalOutAfterBreakIn = ordered.Any(x => x.CheckTime > modeBasedEntry.CheckTime && IsFinalOutMode(x.InOutMode));
+
+                    if (hasFinalOutAfterBreakIn && breakPairGapMinutes <= MaxBreakPairGapMinutesForMissingEntry)
+                    {
+                        return null;
+                    }
+                }
             }
 
             return modeBasedEntry;
@@ -975,6 +1057,16 @@ public sealed class AttendanceProcessor
 
         return entradaPunch.CheckTime.TimeOfDay < MiddayBoundary
             && salidaPunch.CheckTime.TimeOfDay > MiddayBoundary;
+    }
+
+    private static bool ShouldTreatSinglePunchAsExitInDayShift(PunchRecord punch)
+    {
+        if (punch.IsNightShift == true || punch.WorkScheduleCode == 3)
+        {
+            return false;
+        }
+
+        return punch.CheckTime.TimeOfDay >= MiddayBoundary;
     }
 
     private static int ClampHour(int hour)

@@ -20,7 +20,19 @@ internal static class Program
 
         var cfg = configuration.Get<SyncAgentConfiguration>() ?? new SyncAgentConfiguration();
 
+        var localJsonConfiguration = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: false)
+            .Build();
+
+        var localSqlConnectionString = localJsonConfiguration["Sql:ConnectionString"];
+        if (!string.IsNullOrWhiteSpace(localSqlConnectionString))
+        {
+            cfg.Sql.ConnectionString = localSqlConnectionString;
+        }
+
         var services = new ServiceCollection();
+        services.AddSingleton(cfg);
         services.AddSingleton(new DirectDeviceOptions
         {
             Enabled = cfg.Device.Enabled,

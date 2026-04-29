@@ -30,6 +30,9 @@ public sealed class AppConfiguration
         public int Schedule1ExtraCountFromHour { get; set; } = 7;
         public int Schedule2ExtraCountFromHour { get; set; } = 8;
         public int Schedule3ExtraCountFromHour { get; set; } = 18;
+        public decimal Schedule1ExtraMaxHours { get; set; } = 2.4m;
+        public decimal Schedule2ExtraMaxHours { get; set; } = 2.4m;
+        public decimal Schedule3ExtraMaxHours { get; set; } = 3.6m;
     }
 
     public sealed class DeviceSection

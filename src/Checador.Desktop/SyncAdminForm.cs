@@ -60,8 +60,10 @@ public sealed partial class SyncAdminForm : Form
     private readonly Button _btnAutoSyncGui;
     private readonly Button _btnWorkSchedules;
     private readonly Button _btnDeleteEmployee;
+    private readonly Button _btnOvertimeFormat;
     private readonly Button _btnSyncDeviceTime;
     private readonly Button _btnPreviewPervasive;
+    private readonly Button _btnNightShiftCleanup;
     private readonly Button _btnChangeEmployeeRange;
     private readonly Button _btnRefreshStats;
     private readonly Button _btnSecretManualPunch;
@@ -83,6 +85,7 @@ public sealed partial class SyncAdminForm : Form
     private readonly DataGridView _dgvPervasivePreview;
     private readonly DataGridView _dgvEmployees;
     private readonly TextBox _txtLog;
+    private readonly OvertimeWorkOrderFormatGenerator _overtimeFormatGenerator = new();
 
     private bool _busy;
     private bool _secretManualPunchUnlocked;
@@ -216,8 +219,11 @@ public sealed partial class SyncAdminForm : Form
         _btnAutoSyncGui = CreateButton("AutoSync GUI externo", btnAutoSyncGui_Click, 165);
         _btnWorkSchedules = CreateButton("Administrar horarios", btnWorkSchedules_Click, 160);
         _btnDeleteEmployee = CreateButton("Eliminar empleado", btnDeleteEmployee_Click, 145);
+        _btnOvertimeFormat = CreateButton("Formato OT horas extra", btnOvertimeFormat_Click, 185);
         _btnSyncDeviceTime = CreateButton("Sincronizar hora", btnSyncDeviceTime_Click, 150);
         _btnPreviewPervasive = CreateButton("Preview Pervasive", btnPreviewPervasive_Click, 160);
+        _btnNightShiftCleanup = CreateButton("Limpieza nocturna", btnNightShiftCleanup_Click, 165);
+        _btnNightShiftCleanup.Visible = false;
         _btnChangeEmployeeRange = CreateButton("Cambio no. (rango)", btnChangeEmployeeRange_Click, 145);
         _btnRefreshStats = CreateButton("Refrescar", btnRefreshStats_Click, 120);
         _btnSecretManualPunch = CreateButton("Alta manual", btnSecretManualPunch_Click, 135);
@@ -356,6 +362,7 @@ public sealed partial class SyncAdminForm : Form
             _btnDownloadLogs,
             _btnSyncDeviceTime,
             _btnPreviewPervasive,
+            _btnNightShiftCleanup,
             _btnRefreshStats,
             _btnSecretManualPunch
         });
@@ -452,7 +459,8 @@ public sealed partial class SyncAdminForm : Form
         _employeeActionsPanel.Controls.AddRange(new Control[]
         {
             _btnRefreshEmployees,
-            _btnRenameEmployee
+            _btnRenameEmployee,
+            _btnOvertimeFormat
         });
 
         var riskSeparator = new Panel
@@ -586,7 +594,7 @@ public sealed partial class SyncAdminForm : Form
         var buttons = new[]
         {
             _btnDownloadLogs, _btnRefreshEmployees, _btnRenameEmployee, _btnDeleteEmployee,
-            _btnAutoSyncGui, _btnWorkSchedules, _btnSyncDeviceTime, _btnPreviewPervasive, _btnChangeEmployeeRange, _btnRefreshStats,
+            _btnOvertimeFormat, _btnAutoSyncGui, _btnWorkSchedules, _btnSyncDeviceTime, _btnPreviewPervasive, _btnNightShiftCleanup, _btnChangeEmployeeRange, _btnRefreshStats,
             _btnSecretManualPunch
         };
 
@@ -669,9 +677,11 @@ public sealed partial class SyncAdminForm : Form
         ButtonStyles.ApplySecondary(_btnRefreshStats);
         ButtonStyles.ApplySecondary(_btnSyncDeviceTime);
         ButtonStyles.ApplySecondary(_btnPreviewPervasive);
+        ButtonStyles.ApplySecondary(_btnNightShiftCleanup);
 
         ButtonStyles.ApplySecondary(_btnRefreshEmployees);
         ButtonStyles.ApplySecondary(_btnRenameEmployee);
+        ButtonStyles.ApplySecondary(_btnOvertimeFormat);
         ButtonStyles.ApplyDanger(_btnDeleteEmployee);
         ButtonStyles.ApplyDanger(_btnChangeEmployeeRange);
 
@@ -946,6 +956,585 @@ public sealed partial class SyncAdminForm : Form
         }, "Error renombrando empleado");
     }
 
+    private async void btnOvertimeFormat_Click(object? sender, EventArgs e)
+    {
+        var suggestedUserId = 1;
+        var suggestedName = string.Empty;
+
+        if (_dgvEmployees.SelectedRows.Count > 0)
+        {
+            var selectedRow = _dgvEmployees.SelectedRows[0];
+            suggestedUserId = Convert.ToInt32(selectedRow.Cells[nameof(SqlEmployeeCatalogItem.UserId)].Value);
+
+            var sqlName = Convert.ToString(selectedRow.Cells[nameof(SqlEmployeeCatalogItem.SqlName)].Value) ?? string.Empty;
+            var deviceName = Convert.ToString(selectedRow.Cells[nameof(SqlEmployeeCatalogItem.DeviceName)].Value) ?? string.Empty;
+            suggestedName = string.IsNullOrWhiteSpace(sqlName) ? deviceName : sqlName;
+        }
+
+        var request = PromptOvertimeFormatData(suggestedUserId, suggestedName);
+        if (request is null)
+        {
+            return;
+        }
+
+        var safeOt = string.Concat(request.WorkOrderNumber
+            .Where(ch => !Path.GetInvalidFileNameChars().Contains(ch)));
+        if (string.IsNullOrWhiteSpace(safeOt))
+        {
+            safeOt = "OT";
+        }
+
+        using var saveDialog = new SaveFileDialog
+        {
+            Title = "Guardar formato OT de horas extra",
+            Filter = "Excel (*.xlsx)|*.xlsx",
+            DefaultExt = "xlsx",
+            AddExtension = true,
+            FileName = $"OT_{safeOt}_{request.UserId}_{request.FromDate:yyyyMMdd}_{request.ToDate:yyyyMMdd}.xlsx",
+            InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+        };
+
+        if (saveDialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        await SafeUiRunAsync(() =>
+        {
+            _overtimeFormatGenerator.Generate(saveDialog.FileName, request);
+            Log($"Formato OT generado: {saveDialog.FileName}");
+
+            var openNow = MessageBox.Show(
+                "Formato generado correctamente.\n\n¿Deseas abrirlo ahora para imprimirlo o firmarlo?",
+                "Formato OT",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Information);
+
+            if (openNow == DialogResult.Yes)
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = saveDialog.FileName,
+                    UseShellExecute = true
+                };
+                System.Diagnostics.Process.Start(psi);
+            }
+
+            return Task.CompletedTask;
+        }, "Error generando formato OT de horas extra");
+    }
+
+    private static OvertimeWorkOrderFormatData? PromptOvertimeFormatData(int suggestedUserId, string suggestedName)
+    {
+        using var prompt = new Form
+        {
+            Width = 980,
+            Height = 760,
+            MinimumSize = new Size(940, 720),
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            Text = "Formato OT - Solicitud y aprobación de horas extra",
+            StartPosition = FormStartPosition.CenterParent,
+            MinimizeBox = false,
+            MaximizeBox = false,
+            BackColor = Color.FromArgb(245, 248, 252),
+            AutoScaleMode = AutoScaleMode.Dpi
+        };
+
+        var root = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            Padding = new Padding(12)
+        };
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+        prompt.Controls.Add(root);
+
+        var topBar = new Panel
+        {
+            Dock = DockStyle.Fill,
+            Padding = new Padding(12, 8, 12, 8)
+        };
+        root.Controls.Add(topBar, 0, 0);
+
+        var lblIcon = new Label
+        {
+            AutoSize = true,
+            Text = "\uE90F",
+            Font = new Font("Segoe MDL2 Assets", 19F, FontStyle.Regular),
+            ForeColor = Color.FromArgb(0, 120, 215),
+            Location = new Point(8, 10),
+            Tag = "semantic"
+        };
+        var lblTopTitle = new Label
+        {
+            AutoSize = true,
+            Text = "Formato OT · Solicitud de horas extra",
+            Font = new Font("Segoe UI", 12F, FontStyle.Bold),
+            ForeColor = Color.FromArgb(24, 39, 58),
+            Location = new Point(48, 8)
+        };
+        var lblTopSubtitle = new Label
+        {
+            AutoSize = true,
+            Text = "Captura OT, rango, días y firmas para formalizar aprobación.",
+            Font = new Font("Segoe UI", 9F, FontStyle.Regular),
+            ForeColor = Color.FromArgb(98, 110, 126),
+            Location = new Point(50, 32),
+            Tag = "secondary"
+        };
+        topBar.Controls.Add(lblIcon);
+        topBar.Controls.Add(lblTopTitle);
+        topBar.Controls.Add(lblTopSubtitle);
+
+        var content = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 5,
+            Margin = new Padding(0, 8, 0, 4)
+        };
+        content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 186));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 128));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 120));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 132));
+        content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.Controls.Add(content, 0, 1);
+
+        static Label CreateFieldLabel(string text)
+        {
+            return new Label
+            {
+                Text = text,
+                AutoSize = true,
+                Anchor = AnchorStyles.Left,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Font = new Font("Segoe UI", 9F, FontStyle.Regular),
+                Tag = "secondary"
+            };
+        }
+
+        var grpGeneral = new RoundedGroupBox
+        {
+            Text = "Datos Generales",
+            Dock = DockStyle.Fill,
+            Padding = new Padding(12, 10, 12, 10),
+            Margin = new Padding(0, 0, 0, 8)
+        };
+        content.Controls.Add(grpGeneral, 0, 0);
+
+        var generalGrid = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 4,
+            RowCount = 4
+        };
+        generalGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+        generalGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        generalGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+        generalGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        generalGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        generalGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        generalGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        generalGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        grpGeneral.Controls.Add(generalGrid);
+
+        var lblUser = CreateFieldLabel("USERID:");
+        var numUser = new NumericUpDown
+        {
+            Width = 130,
+            Minimum = 1,
+            Maximum = 99999,
+            Value = Math.Clamp(suggestedUserId, 1, 99999),
+            Anchor = AnchorStyles.Left
+        };
+
+        var lblEmployee = CreateFieldLabel("Empleado:");
+        var txtEmployee = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            Text = string.IsNullOrWhiteSpace(suggestedName) ? $"Empleado_{suggestedUserId}" : suggestedName
+        };
+
+        var lblOt = CreateFieldLabel("Orden OT:");
+        var txtOt = new TextBox { Dock = DockStyle.Fill };
+
+        var lblRequestDate = CreateFieldLabel("Fecha solicitud:");
+        var dtRequestDate = new DateTimePicker
+        {
+            Anchor = AnchorStyles.Left | AnchorStyles.Right,
+            Format = DateTimePickerFormat.Short,
+            Value = DateTime.Today
+        };
+
+        var lblFrom = CreateFieldLabel("Desde:");
+        var dtFrom = new DateTimePicker
+        {
+            Anchor = AnchorStyles.Left | AnchorStyles.Right,
+            Format = DateTimePickerFormat.Short,
+            Value = DateTime.Today
+        };
+
+        var lblTo = CreateFieldLabel("Hasta:");
+        var dtTo = new DateTimePicker
+        {
+            Anchor = AnchorStyles.Left | AnchorStyles.Right,
+            Format = DateTimePickerFormat.Short,
+            Value = DateTime.Today
+        };
+
+        var lblSchedule = CreateFieldLabel("Horario:");
+        var txtSchedule = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            Text = "Por definir"
+        };
+
+        generalGrid.Controls.Add(lblUser, 0, 0);
+        generalGrid.Controls.Add(numUser, 1, 0);
+        generalGrid.Controls.Add(lblEmployee, 2, 0);
+        generalGrid.Controls.Add(txtEmployee, 3, 0);
+
+        generalGrid.Controls.Add(lblOt, 0, 1);
+        generalGrid.Controls.Add(txtOt, 1, 1);
+        generalGrid.Controls.Add(lblRequestDate, 2, 1);
+        generalGrid.Controls.Add(dtRequestDate, 3, 1);
+
+        generalGrid.Controls.Add(lblFrom, 0, 2);
+        generalGrid.Controls.Add(dtFrom, 1, 2);
+        generalGrid.Controls.Add(lblTo, 2, 2);
+        generalGrid.Controls.Add(dtTo, 3, 2);
+
+        generalGrid.Controls.Add(lblSchedule, 0, 3);
+        generalGrid.Controls.Add(txtSchedule, 1, 3);
+        generalGrid.SetColumnSpan(txtSchedule, 3);
+
+        var grpWork = new RoundedGroupBox
+        {
+            Text = "Trabajo A Realizar",
+            Dock = DockStyle.Fill,
+            Padding = new Padding(12, 10, 12, 10),
+            Margin = new Padding(0, 0, 0, 8)
+        };
+        content.Controls.Add(grpWork, 0, 1);
+
+        var txtWorkDescription = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            Multiline = true,
+            ScrollBars = ScrollBars.Vertical,
+            AcceptsReturn = true
+        };
+        grpWork.Controls.Add(txtWorkDescription);
+
+        var grpDays = new RoundedGroupBox
+        {
+            Text = "Días De Trabajo",
+            Dock = DockStyle.Fill,
+            Padding = new Padding(12, 10, 12, 10),
+            Margin = new Padding(0, 0, 0, 8)
+        };
+        content.Controls.Add(grpDays, 0, 2);
+
+        var clbDays = new CheckedListBox
+        {
+            Dock = DockStyle.Fill,
+            CheckOnClick = true,
+            MultiColumn = true,
+            ColumnWidth = 130,
+            IntegralHeight = false
+        };
+        grpDays.Controls.Add(clbDays);
+
+        clbDays.Items.AddRange(new object[]
+        {
+            "Lunes",
+            "Martes",
+            "Miércoles",
+            "Jueves",
+            "Viernes",
+            "Sábado",
+            "Domingo"
+        });
+        for (var i = 0; i < 5; i++)
+        {
+            clbDays.SetItemChecked(i, true);
+        }
+
+        var grpSignatures = new RoundedGroupBox
+        {
+            Text = "Firmas Y Responsables",
+            Dock = DockStyle.Fill,
+            Padding = new Padding(12, 10, 12, 10),
+            Margin = new Padding(0, 0, 0, 8)
+        };
+        content.Controls.Add(grpSignatures, 0, 3);
+
+        var signaturesGrid = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 3
+        };
+        signaturesGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
+        signaturesGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        signaturesGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        signaturesGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        signaturesGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        grpSignatures.Controls.Add(signaturesGrid);
+
+        var lblBoss = CreateFieldLabel("Jefe inmediato:");
+        var txtBoss = new TextBox { Dock = DockStyle.Fill };
+
+        var lblBossSignature = CreateFieldLabel("Firma jefe (texto):");
+        var txtBossSignature = new TextBox { Dock = DockStyle.Fill };
+
+        var lblEmployeeSignature = CreateFieldLabel("Firma empleado (texto):");
+        var txtEmployeeSignature = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            Text = txtEmployee.Text
+        };
+
+        signaturesGrid.Controls.Add(lblBoss, 0, 0);
+        signaturesGrid.Controls.Add(txtBoss, 1, 0);
+        signaturesGrid.Controls.Add(lblBossSignature, 0, 1);
+        signaturesGrid.Controls.Add(txtBossSignature, 1, 1);
+        signaturesGrid.Controls.Add(lblEmployeeSignature, 0, 2);
+        signaturesGrid.Controls.Add(txtEmployeeSignature, 1, 2);
+
+        var grpNotes = new RoundedGroupBox
+        {
+            Text = "Observaciones",
+            Dock = DockStyle.Fill,
+            Padding = new Padding(12, 10, 12, 10)
+        };
+        content.Controls.Add(grpNotes, 0, 4);
+
+        var txtNotes = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            Multiline = true,
+            ScrollBars = ScrollBars.Vertical,
+            AcceptsReturn = true
+        };
+        grpNotes.Controls.Add(txtNotes);
+
+        var btnOk = new Button
+        {
+            Text = "Generar formato",
+            Width = 130,
+            Height = 36,
+            Margin = new Padding(8, 0, 0, 0),
+            DialogResult = DialogResult.OK
+        };
+        var btnCancel = new Button
+        {
+            Text = "Cancelar",
+            Width = 120,
+            Height = 36,
+            Margin = new Padding(8, 0, 0, 0),
+            DialogResult = DialogResult.Cancel
+        };
+
+        ButtonStyles.ApplyPrimary(btnOk);
+        ButtonStyles.ApplySecondary(btnCancel);
+
+        var footer = new Panel { Dock = DockStyle.Fill };
+        root.Controls.Add(footer, 0, 2);
+
+        var footerFlow = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Right,
+            FlowDirection = FlowDirection.RightToLeft,
+            WrapContents = false,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = new Padding(0, 8, 0, 0)
+        };
+        footer.Controls.Add(footerFlow);
+        footerFlow.Controls.Add(btnCancel);
+        footerFlow.Controls.Add(btnOk);
+
+        var cards = new[]
+        {
+            grpGeneral,
+            grpWork,
+            grpDays,
+            grpSignatures,
+            grpNotes
+        };
+
+        void ApplyPromptTheme()
+        {
+            ThemeManager.ApplyToForm(prompt);
+
+            prompt.BackColor = ThemeManager.Bg;
+            root.BackColor = ThemeManager.Bg;
+            content.BackColor = ThemeManager.Bg;
+            topBar.BackColor = ThemeManager.BgSecondary;
+            footer.BackColor = ThemeManager.Bg;
+            lblIcon.ForeColor = ThemeManager.Primary;
+            lblTopTitle.ForeColor = ThemeManager.Text;
+            lblTopSubtitle.ForeColor = ThemeManager.TextSecond;
+
+            foreach (var card in cards)
+            {
+                card.BackColor = ThemeManager.BgSecondary;
+                card.ForeColor = ThemeManager.Text;
+                card.BorderColor = ThemeManager.Border;
+                card.ShadowOpacity = ThemeManager.IsDark ? 10 : 24;
+                card.ShowShadow = !ThemeManager.IsDark;
+                card.Invalidate();
+            }
+
+            numUser.BackColor = ThemeManager.BgSecondary;
+            numUser.ForeColor = ThemeManager.Text;
+
+            var datePickers = new[] { dtRequestDate, dtFrom, dtTo };
+            foreach (var picker in datePickers)
+            {
+                picker.CalendarMonthBackground = ThemeManager.BgSecondary;
+                picker.CalendarForeColor = ThemeManager.Text;
+                picker.CalendarTitleBackColor = ThemeManager.BgTertiary;
+                picker.CalendarTitleForeColor = ThemeManager.Text;
+                picker.CalendarTrailingForeColor = ThemeManager.TextSecond;
+            }
+
+            clbDays.BackColor = ThemeManager.BgSecondary;
+            clbDays.ForeColor = ThemeManager.Text;
+            clbDays.BorderStyle = BorderStyle.FixedSingle;
+        }
+
+        EventHandler? themeHandler = null;
+        themeHandler = (_, _) =>
+        {
+            if (!prompt.IsHandleCreated || prompt.IsDisposed)
+            {
+                return;
+            }
+
+            prompt.BeginInvoke((Action)ApplyPromptTheme);
+        };
+
+        ThemeManager.ThemeChanged += themeHandler;
+        prompt.FormClosed += (_, _) => ThemeManager.ThemeChanged -= themeHandler;
+        prompt.Shown += (_, _) => ApplyPromptTheme();
+
+        prompt.AcceptButton = btnOk;
+        prompt.CancelButton = btnCancel;
+
+        if (prompt.ShowDialog() != DialogResult.OK)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(txtOt.Text))
+        {
+            MessageBox.Show("La orden OT es obligatoria.", "Formato OT", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(txtEmployee.Text))
+        {
+            MessageBox.Show("El nombre del empleado es obligatorio.", "Formato OT", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(txtWorkDescription.Text))
+        {
+            MessageBox.Show("Describe el trabajo a realizar para la OT.", "Formato OT", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return null;
+        }
+
+        if (dtFrom.Value.Date > dtTo.Value.Date)
+        {
+            MessageBox.Show("La fecha 'Desde' no puede ser mayor a la fecha 'Hasta'.", "Formato OT", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(txtBoss.Text))
+        {
+            MessageBox.Show("El nombre del jefe inmediato es obligatorio.", "Formato OT", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(txtBossSignature.Text))
+        {
+            MessageBox.Show("La firma del jefe inmediato (texto) es obligatoria.", "Formato OT", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(txtEmployeeSignature.Text))
+        {
+            MessageBox.Show("La firma del empleado (texto) es obligatoria.", "Formato OT", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return null;
+        }
+
+        var checkedDays = clbDays.CheckedItems
+            .Cast<string>()
+            .Select(x => x.Trim())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToList();
+
+        if (checkedDays.Count == 0)
+        {
+            checkedDays = GetSpanishDayNamesFromRange(dtFrom.Value.Date, dtTo.Value.Date);
+        }
+
+        var daysText = checkedDays.Count == 0 ? "Por definir" : string.Join(", ", checkedDays);
+        var scheduleText = string.IsNullOrWhiteSpace(txtSchedule.Text) ? "Por definir" : txtSchedule.Text.Trim();
+
+        return new OvertimeWorkOrderFormatData(
+            (int)numUser.Value,
+            txtEmployee.Text.Trim(),
+            txtOt.Text.Trim(),
+            txtWorkDescription.Text.Trim(),
+            dtRequestDate.Value.Date,
+            dtFrom.Value.Date,
+            dtTo.Value.Date,
+            daysText,
+            scheduleText,
+            txtBoss.Text.Trim(),
+            txtBossSignature.Text.Trim(),
+            txtEmployeeSignature.Text.Trim(),
+            NullIfWhiteSpace(txtNotes.Text));
+    }
+
+    private static List<string> GetSpanishDayNamesFromRange(DateTime fromDate, DateTime toDate)
+    {
+        var names = new List<string>();
+        for (var cursor = fromDate.Date; cursor <= toDate.Date; cursor = cursor.AddDays(1))
+        {
+            var name = GetSpanishDayName(cursor.DayOfWeek);
+            if (!names.Contains(name, StringComparer.OrdinalIgnoreCase))
+            {
+                names.Add(name);
+            }
+        }
+
+        return names;
+    }
+
+    private static string GetSpanishDayName(DayOfWeek dayOfWeek)
+    {
+        return dayOfWeek switch
+        {
+            DayOfWeek.Monday => "Lunes",
+            DayOfWeek.Tuesday => "Martes",
+            DayOfWeek.Wednesday => "Miércoles",
+            DayOfWeek.Thursday => "Jueves",
+            DayOfWeek.Friday => "Viernes",
+            DayOfWeek.Saturday => "Sábado",
+            DayOfWeek.Sunday => "Domingo",
+            _ => dayOfWeek.ToString()
+        };
+    }
+
     private async void btnDeleteEmployee_Click(object? sender, EventArgs e)
     {
         var empleadoSeleccionado = "empleado seleccionado";
@@ -1079,19 +1668,19 @@ public sealed partial class SyncAdminForm : Form
             return;
         }
 
-        var isSimulation = request.SimulatedEntries is { Count: > 0 };
-        var simulationDetail = isSimulation
-            ? string.Join("\n", request.SimulatedEntries!.Select(x => $"- {x.CheckTime:dd/MM/yyyy HH:mm:ss} · {FormatInOutMode(x.InOutMode)}"))
-            : "(sin simulación)";
+        var hasBatch = request.BatchEntries is { Count: > 0 };
+        var batchDetail = hasBatch
+            ? string.Join("\n", request.BatchEntries!.Select(x => $"- {x.CheckTime:dd/MM/yyyy HH:mm:ss} · {FormatInOutMode(x.InOutMode)}"))
+            : "(sin lote)";
 
         var answer = MessageBox.Show(
             "Se insertara una asistencia manual con este detalle:\n\n" +
             $"USERID: {request.UserId}\n" +
             $"Nombre: {request.EmployeeName}\n" +
-            (isSimulation
-                ? $"Simulación seleccionada ({request.SimulatedEntries!.Count} marca(s)):\n{simulationDetail}\n\n"
+            (hasBatch
+                ? $"Marcas manuales seleccionadas ({request.BatchEntries!.Count}):\n{batchDetail}\n\n"
                 : $"Fecha/hora: {request.CheckTime:dd/MM/yyyy HH:mm:ss}\nModo: {FormatInOutMode(request.InOutMode)}\n\n") +
-            (!string.IsNullOrWhiteSpace(request.SimulationNotes) ? $"{request.SimulationNotes}\n\n" : string.Empty) +
+            (!string.IsNullOrWhiteSpace(request.Notes) ? $"{request.Notes}\n\n" : string.Empty) +
             "Se aplicara el mismo flujo SQL/Pervasive de sincronizacion normal.",
             "Confirmar alta manual",
             MessageBoxButtons.YesNo,
@@ -1103,20 +1692,20 @@ public sealed partial class SyncAdminForm : Form
             return;
         }
 
-        var result = isSimulation
+        var result = hasBatch
             ? await _syncService.InsertManualPunchesAsync(
                 request.UserId,
                 request.EmployeeName,
-                request.SimulatedEntries!)
+                request.BatchEntries!)
             : await _syncService.InsertManualPunchAsync(
                 request.UserId,
                 request.EmployeeName,
                 request.CheckTime,
                 request.InOutMode);
 
-        if (isSimulation)
+        if (hasBatch)
         {
-            Log($"Alta manual simulada USERID {request.UserId}. Simuladas={request.SimulatedEntries!.Count}, insertadas={result.InsertedPunches}, duplicadas={result.DuplicatePunches}. {result.Message}");
+            Log($"Alta manual por lote USERID {request.UserId}. Marcas={request.BatchEntries!.Count}, insertadas={result.InsertedPunches}, duplicadas={result.DuplicatePunches}. {result.Message}");
         }
         else
         {
@@ -1142,6 +1731,11 @@ public sealed partial class SyncAdminForm : Form
     private async void btnPreviewPervasive_Click(object? sender, EventArgs e)
     {
         await SafeUiRunAsync(OpenPervasivePreviewDialogAsync, "Error cargando preview Pervasive");
+    }
+
+    private async void btnNightShiftCleanup_Click(object? sender, EventArgs e)
+    {
+        await SafeUiRunAsync(OpenNightShiftCleanupDialogAsync, "Error ejecutando limpieza nocturna Pervasive");
     }
 
     private async void btnChangeEmployeeRange_Click(object? sender, EventArgs e)
@@ -1421,6 +2015,82 @@ public sealed partial class SyncAdminForm : Form
         dialog.ShowDialog(this);
     }
 
+    private async Task OpenNightShiftCleanupDialogAsync()
+    {
+        int? suggestedUserId = null;
+        if (_dgvEmployees.SelectedRows.Count > 0)
+        {
+            suggestedUserId = Convert.ToInt32(_dgvEmployees.SelectedRows[0].Cells[nameof(SqlEmployeeCatalogItem.UserId)].Value);
+        }
+
+        var request = PromptNightShiftCleanupData(suggestedUserId);
+        if (request is null)
+        {
+            return;
+        }
+
+        if (!PromptPassword("Autorización requerida para limpieza correctiva nocturna", out var typedPassword)
+            || !string.Equals(typedPassword, SensitiveChangePassword, StringComparison.Ordinal))
+        {
+            Log("Limpieza nocturna denegada: contraseña inválida.");
+            MessageBox.Show("Contraseña incorrecta. Operación cancelada.", "Acceso denegado", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        var scope = request.UserId.HasValue
+            ? $"USERID {request.UserId.Value}"
+            : "todos los empleados con horario 3";
+
+        var answer = MessageBox.Show(
+            "Se ejecutará una limpieza correctiva de renglones partidos en Pervasive.\n\n" +
+            $"Rango: {request.FromDate:dd/MM/yyyy} a {request.ToDate:dd/MM/yyyy}\n" +
+            $"Alcance: {scope}\n\n" +
+            "La operación recalcula espejo para horario 3 y elimina renglones huérfanos enlazados a la salida nocturna previa.\n\n" +
+            "¿Deseas continuar?",
+            "Confirmar limpieza nocturna Pervasive",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning,
+            MessageBoxDefaultButton.Button2);
+
+        if (answer != DialogResult.Yes)
+        {
+            return;
+        }
+
+        var result = await _syncService.RunPervasiveNightShiftHistoricalCleanupAsync(
+            request.FromDate,
+            request.ToDate,
+            request.UserId);
+
+        if (result.CandidatePunches == 0 && !request.UserId.HasValue)
+        {
+            Log("Limpieza nocturna: sin candidatos globales. Sugerencia: ejecuta por USERID específico o asigna Horario 3 en catálogo.");
+        }
+
+        Log(result.Message);
+
+        await RefreshStatsAsync();
+        await RefreshLiveMonitorAsync();
+        await LoadPervasivePreviewAsync();
+
+        var icon = result.Enabled && result.ProcessedPunches > 0
+            ? MessageBoxIcon.Information
+            : MessageBoxIcon.Warning;
+
+        MessageBox.Show(
+            "Resultado limpieza nocturna:\n\n" +
+            $"Rango: {result.FromDate:dd/MM/yyyy} a {result.ToDate:dd/MM/yyyy}\n" +
+            $"Marcas candidatas: {result.CandidatePunches}\n" +
+            $"Marcas procesadas: {result.ProcessedPunches}\n" +
+            $"Usuarios afectados: {result.AffectedUsers}\n" +
+            $"Renglones huérfanos eliminados: {result.DeletedSplitRows}\n" +
+            (result.TruncatedByTop ? "\nAviso: hubo tope de filas procesadas en esta corrida.\n" : "\n") +
+            $"\nDetalle espejo: {result.MirrorMessage}",
+            "Limpieza nocturna Pervasive",
+            MessageBoxButtons.OK,
+            icon);
+    }
+
     private void ConfigureEmployeeGridColumns()
     {
         if (_dgvEmployees.Columns.Count == 0)
@@ -1590,11 +2260,13 @@ public sealed partial class SyncAdminForm : Form
         _btnDownloadLogs.Enabled = !busy;
         _btnRefreshEmployees.Enabled = !busy;
         _btnRenameEmployee.Enabled = !busy;
+        _btnOvertimeFormat.Enabled = !busy;
         _btnAutoSyncGui.Enabled = !busy;
         _btnWorkSchedules.Enabled = !busy;
         _btnDeleteEmployee.Enabled = !busy;
         _btnSyncDeviceTime.Enabled = !busy;
         _btnPreviewPervasive.Enabled = !busy;
+        _btnNightShiftCleanup.Enabled = !busy;
         _btnChangeEmployeeRange.Enabled = !busy;
         _btnRefreshStats.Enabled = !busy;
         _btnSecretManualPunch.Enabled = !busy && _secretManualPunchUnlocked;
@@ -1985,25 +2657,37 @@ public sealed partial class SyncAdminForm : Form
             .GroupBy(x => x.Code)
             .ToDictionary(g => g.Key, g => g.First());
 
-        var workingArea = Screen.FromControl(this).WorkingArea;
-        var dialogWidth = Math.Min(1060, workingArea.Width - 24);
-        var dialogHeight = Math.Min(760, workingArea.Height - 24);
-        if (dialogWidth < 700)
+        var employeeCatalog = (await _syncService.GetEmployeeCatalogAsync())
+            .OrderBy(x => x.UserId)
+            .ToList();
+
+        var catalogRows = employeeCatalog
+            .Select(x => new ManualCatalogRow(
+                x.UserId,
+                string.IsNullOrWhiteSpace(x.SqlName) ? x.DeviceName : x.SqlName,
+                x.Department ?? string.Empty,
+                x.WorkScheduleCode.HasValue ? $"{x.WorkScheduleCode.Value}" : "-"))
+            .ToList();
+
+        if (catalogRows.All(x => x.UserId != suggestedUserId))
         {
-            dialogWidth = workingArea.Width;
+            catalogRows.Insert(0, new ManualCatalogRow(
+                suggestedUserId,
+                string.IsNullOrWhiteSpace(suggestedName) ? $"Empleado_{suggestedUserId}" : suggestedName,
+                string.Empty,
+                "-"));
         }
 
-        if (dialogHeight < 520)
-        {
-            dialogHeight = workingArea.Height;
-        }
+        var workingArea = Screen.FromControl(this).WorkingArea;
+        var dialogWidth = Math.Min(1240, workingArea.Width - 24);
+        var dialogHeight = Math.Min(780, workingArea.Height - 24);
 
         using var prompt = new Form
         {
             Width = dialogWidth,
             Height = dialogHeight,
             FormBorderStyle = FormBorderStyle.Sizable,
-            Text = "Alta manual de asistencia",
+            Text = "Alta manual de asistencia (visual)",
             StartPosition = FormStartPosition.CenterParent,
             MinimizeBox = false,
             MaximizeBox = true,
@@ -2014,63 +2698,120 @@ public sealed partial class SyncAdminForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 5,
+            RowCount = 3,
             Padding = new Padding(14)
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 178));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 110));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
         prompt.Controls.Add(root);
-
-        Label CreateFieldLabel(string text)
-        {
-            return new Label
-            {
-                Text = text,
-                AutoSize = true,
-                ForeColor = Color.FromArgb(42, 52, 65),
-                Anchor = AnchorStyles.Left,
-                Margin = new Padding(0, 8, 8, 0)
-            };
-        }
 
         var lblHint = new Label
         {
             Dock = DockStyle.Fill,
             ForeColor = Color.FromArgb(42, 52, 65),
             Font = new Font("Segoe UI", 9.5F, FontStyle.Regular),
-            Text = "Puedes revisar faltantes por horario del empleado, simular registros y decidir si aplicarlos antes de insertar."
+            Text = "1) Selecciona empleado del catálogo. 2) Elige fecha/hora. 3) Agrega marca en la columna que corresponda (Entrada, Salida comida, Entrada comida, Salida)."
         };
         root.Controls.Add(lblHint, 0, 0);
 
-        var inputCard = new Panel
+        var splitMain = new SplitContainer
+        {
+            Dock = DockStyle.Fill,
+            BorderStyle = BorderStyle.None
+        };
+        root.Controls.Add(splitMain, 0, 1);
+
+        var grpCatalog = new GroupBox
+        {
+            Dock = DockStyle.Fill,
+            Text = "Catálogo de empleados",
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+            ForeColor = Color.FromArgb(42, 52, 65),
+            Padding = new Padding(8)
+        };
+        splitMain.Panel1.Controls.Add(grpCatalog);
+
+        var dgvCatalog = new DataGridView
+        {
+            Dock = DockStyle.Fill,
+            ReadOnly = true,
+            AllowUserToAddRows = false,
+            AllowUserToDeleteRows = false,
+            AutoGenerateColumns = true,
+            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            MultiSelect = false,
+            RowHeadersVisible = false,
+            BackgroundColor = Color.White,
+            BorderStyle = BorderStyle.None
+        };
+        grpCatalog.Controls.Add(dgvCatalog);
+
+        dgvCatalog.DataSource = catalogRows;
+        if (dgvCatalog.Columns.Contains(nameof(ManualCatalogRow.UserId)))
+        {
+            dgvCatalog.Columns[nameof(ManualCatalogRow.UserId)].HeaderText = "USERID";
+            dgvCatalog.Columns[nameof(ManualCatalogRow.UserId)].FillWeight = 20;
+        }
+
+        if (dgvCatalog.Columns.Contains(nameof(ManualCatalogRow.EmployeeName)))
+        {
+            dgvCatalog.Columns[nameof(ManualCatalogRow.EmployeeName)].HeaderText = "Empleado";
+            dgvCatalog.Columns[nameof(ManualCatalogRow.EmployeeName)].FillWeight = 50;
+        }
+
+        if (dgvCatalog.Columns.Contains(nameof(ManualCatalogRow.Department)))
+        {
+            dgvCatalog.Columns[nameof(ManualCatalogRow.Department)].HeaderText = "Depto";
+            dgvCatalog.Columns[nameof(ManualCatalogRow.Department)].FillWeight = 20;
+        }
+
+        if (dgvCatalog.Columns.Contains(nameof(ManualCatalogRow.ScheduleCode)))
+        {
+            dgvCatalog.Columns[nameof(ManualCatalogRow.ScheduleCode)].HeaderText = "Horario";
+            dgvCatalog.Columns[nameof(ManualCatalogRow.ScheduleCode)].FillWeight = 10;
+        }
+
+        var rightLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 4,
+            Margin = new Padding(0)
+        };
+        rightLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 148));
+        rightLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 156));
+        rightLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        rightLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+        splitMain.Panel2.Controls.Add(rightLayout);
+
+        var cardInput = new Panel
         {
             Dock = DockStyle.Fill,
             BackColor = Color.White,
             BorderStyle = BorderStyle.FixedSingle,
-            Padding = new Padding(12)
+            Padding = new Padding(10)
         };
+        rightLayout.Controls.Add(cardInput, 0, 0);
 
         var inputGrid = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 4,
-            RowCount = 4
+            ColumnCount = 6,
+            RowCount = 3
         };
-        inputGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 16));
-        inputGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34));
-        inputGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 16));
-        inputGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34));
+        inputGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
+        inputGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+        inputGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
+        inputGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        inputGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
+        inputGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 200));
         inputGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
         inputGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-        inputGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
-        inputGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-        inputCard.Controls.Add(inputGrid);
-        root.Controls.Add(inputCard, 0, 1);
+        inputGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        cardInput.Controls.Add(inputGrid);
 
-        var lblUser = CreateFieldLabel("USERID:");
         var numUser = new NumericUpDown
         {
             Dock = DockStyle.Fill,
@@ -2078,23 +2819,17 @@ public sealed partial class SyncAdminForm : Form
             Maximum = 99999,
             Value = Math.Clamp(suggestedUserId, 1, 99999)
         };
-
-        var lblName = CreateFieldLabel("Nombre empleado:");
         var txtName = new TextBox
         {
             Dock = DockStyle.Fill,
             Text = string.IsNullOrWhiteSpace(suggestedName) ? string.Empty : suggestedName.Trim()
         };
-
-        var lblDay = CreateFieldLabel("Día a revisar:");
         var dtDay = new DateTimePicker
         {
             Dock = DockStyle.Fill,
             Format = DateTimePickerFormat.Short,
             Value = DateTime.Today
         };
-
-        var lblManualTime = CreateFieldLabel("Inserción manual puntual:");
         var dtCheckTime = new DateTimePicker
         {
             Dock = DockStyle.Fill,
@@ -2103,148 +2838,165 @@ public sealed partial class SyncAdminForm : Form
             ShowUpDown = true,
             Value = DateTime.Now
         };
-
-        var lblMode = CreateFieldLabel("Modo checador:");
-        var cmbMode = new ComboBox
+        var cmbQuickMode = new ComboBox
         {
             Dock = DockStyle.Fill,
             DropDownStyle = ComboBoxStyle.DropDownList
         };
-        cmbMode.Items.AddRange(new object[]
+        cmbQuickMode.Items.AddRange(new object[]
         {
-            "Sin modo (null)",
             "Entrada (0)",
-            "Salida (1)"
+            "Salida comida (2)",
+            "Entrada comida (3)",
+            "Salida (1)",
+            "Sin modo (null)"
         });
-        cmbMode.SelectedIndex = 0;
+        cmbQuickMode.SelectedIndex = 0;
 
-        var btnAnalyze = new Button
-        {
-            Width = 135,
-            Height = 30,
-            Text = "Ver faltantes"
-        };
+        var btnAddSelected = new Button { Text = "Agregar tipo", Width = 110, Height = 30 };
+        var btnAddEntry = new Button { Text = "Entrada", Width = 95, Height = 30 };
+        var btnAddBreakOut = new Button { Text = "Salida comida", Width = 120, Height = 30 };
+        var btnAddBreakIn = new Button { Text = "Entrada comida", Width = 124, Height = 30 };
+        var btnAddExit = new Button { Text = "Salida", Width = 90, Height = 30 };
+        var btnRemovePending = new Button { Text = "Quitar seleccionada", Width = 135, Height = 30 };
+        var btnClearPending = new Button { Text = "Limpiar lista", Width = 110, Height = 30 };
+        ButtonStyles.ApplySecondary(btnAddSelected);
+        ButtonStyles.ApplySecondary(btnAddEntry);
+        ButtonStyles.ApplySecondary(btnAddBreakOut);
+        ButtonStyles.ApplySecondary(btnAddBreakIn);
+        ButtonStyles.ApplySecondary(btnAddExit);
+        ButtonStyles.ApplySecondary(btnRemovePending);
+        ButtonStyles.ApplySecondary(btnClearPending);
 
-        var btnSimulate = new Button
-        {
-            Width = 135,
-            Height = 30,
-            Text = "Simular registros"
-        };
-
-        var actionsPanel = new FlowLayoutPanel
+        var quickPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
-            Margin = new Padding(0),
-            Padding = new Padding(0)
+            Margin = new Padding(0)
         };
-        actionsPanel.Controls.Add(btnAnalyze);
-        actionsPanel.Controls.Add(btnSimulate);
+        quickPanel.Controls.Add(cmbQuickMode);
+        quickPanel.Controls.Add(btnAddSelected);
 
-        var chkUseSimulation = new CheckBox
+        var modeButtonsPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
-            Text = "Usar simulación al guardar (si detecta faltantes por horario)",
-            Checked = false,
-            Enabled = false,
-            Margin = new Padding(0, 6, 0, 0)
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Margin = new Padding(0)
         };
+        modeButtonsPanel.Controls.Add(btnAddEntry);
+        modeButtonsPanel.Controls.Add(btnAddBreakOut);
+        modeButtonsPanel.Controls.Add(btnAddBreakIn);
+        modeButtonsPanel.Controls.Add(btnAddExit);
+        modeButtonsPanel.Controls.Add(btnRemovePending);
+        modeButtonsPanel.Controls.Add(btnClearPending);
 
-        inputGrid.Controls.Add(lblUser, 0, 0);
+        inputGrid.Controls.Add(new Label { Text = "USERID:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
         inputGrid.Controls.Add(numUser, 1, 0);
-        inputGrid.Controls.Add(lblName, 2, 0);
+        inputGrid.Controls.Add(new Label { Text = "Empleado:", AutoSize = true, Anchor = AnchorStyles.Left }, 2, 0);
         inputGrid.Controls.Add(txtName, 3, 0);
+        inputGrid.Controls.Add(new Label { Text = "Día:", AutoSize = true, Anchor = AnchorStyles.Left }, 4, 0);
+        inputGrid.Controls.Add(dtDay, 5, 0);
 
-        inputGrid.Controls.Add(lblDay, 0, 1);
-        inputGrid.Controls.Add(dtDay, 1, 1);
-        inputGrid.Controls.Add(lblManualTime, 2, 1);
-        inputGrid.Controls.Add(dtCheckTime, 3, 1);
+        inputGrid.Controls.Add(new Label { Text = "Fecha/hora:", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1);
+        inputGrid.Controls.Add(dtCheckTime, 1, 1);
+        inputGrid.Controls.Add(new Label { Text = "Tipo:", AutoSize = true, Anchor = AnchorStyles.Left }, 2, 1);
+        inputGrid.Controls.Add(quickPanel, 3, 1);
+        inputGrid.SetColumnSpan(quickPanel, 3);
 
-        inputGrid.Controls.Add(lblMode, 0, 2);
-        inputGrid.Controls.Add(cmbMode, 1, 2);
-        inputGrid.Controls.Add(actionsPanel, 2, 2);
-        inputGrid.SetColumnSpan(actionsPanel, 2);
+        inputGrid.Controls.Add(modeButtonsPanel, 0, 2);
+        inputGrid.SetColumnSpan(modeButtonsPanel, 6);
 
-        inputGrid.Controls.Add(chkUseSimulation, 0, 3);
-        inputGrid.SetColumnSpan(chkUseSimulation, 4);
-
-        var lblSchedule = new Label
+        var cardProjection = new GroupBox
         {
             Dock = DockStyle.Fill,
-            Padding = new Padding(12, 8, 12, 8),
-            BackColor = Color.FromArgb(239, 245, 252),
-            BorderStyle = BorderStyle.FixedSingle,
-            ForeColor = Color.FromArgb(64, 74, 88),
-            Text = "Horario: cargando..."
+            Text = "Vista del día (como reporte)",
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+            ForeColor = Color.FromArgb(42, 52, 65),
+            Padding = new Padding(8)
         };
-        root.Controls.Add(lblSchedule, 0, 2);
+        rightLayout.Controls.Add(cardProjection, 0, 1);
 
-        var listsContainer = new SplitContainer
+        var dgvProjection = new DataGridView
         {
             Dock = DockStyle.Fill,
-            IsSplitterFixed = false,
-            BorderStyle = BorderStyle.None,
-            Panel1MinSize = 40,
-            Panel2MinSize = 40
+            ReadOnly = true,
+            AllowUserToAddRows = false,
+            AllowUserToDeleteRows = false,
+            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            MultiSelect = false,
+            RowHeadersVisible = false,
+            BackgroundColor = Color.White,
+            BorderStyle = BorderStyle.None
         };
+        cardProjection.Controls.Add(dgvProjection);
 
-        void ApplySafeSplitterDistance()
+        var splitBottom = new SplitContainer
         {
-            const int targetPanelMinSize = 260;
-            var totalWidth = listsContainer.ClientSize.Width;
-            if (totalWidth <= 0)
+            Dock = DockStyle.Fill,
+            Orientation = Orientation.Horizontal,
+        };
+        rightLayout.Controls.Add(splitBottom, 0, 2);
+
+        void ApplySafeSplitterDistance(SplitContainer container, int desiredDistance, int minPanel1, int minPanel2)
+        {
+            var totalLength = container.Orientation == Orientation.Vertical
+                ? container.ClientSize.Width
+                : container.ClientSize.Height;
+
+            if (totalLength <= 0)
             {
                 return;
             }
 
-            var splitterWidth = Math.Max(1, listsContainer.SplitterWidth);
-            var available = totalWidth - splitterWidth;
+            var splitter = Math.Max(1, container.SplitterWidth);
+            var available = totalLength - splitter;
             if (available <= 40)
             {
                 return;
             }
 
-            var maxAllowedPanelMin = Math.Max(40, (available - 12) / 2);
-            var safePanelMin = Math.Min(targetPanelMinSize, maxAllowedPanelMin);
+            var safeMin1 = Math.Clamp(minPanel1, 40, Math.Max(40, available - 40));
+            var safeMin2 = Math.Clamp(minPanel2, 40, Math.Max(40, available - 40));
+
+            if (safeMin1 + safeMin2 > available)
+            {
+                safeMin1 = Math.Max(40, available / 2);
+                safeMin2 = Math.Max(40, available - safeMin1);
+            }
 
             try
             {
-                if (listsContainer.Panel1MinSize != safePanelMin)
+                if (container.Panel1MinSize != safeMin1)
                 {
-                    listsContainer.Panel1MinSize = safePanelMin;
+                    container.Panel1MinSize = safeMin1;
                 }
 
-                if (listsContainer.Panel2MinSize != safePanelMin)
+                if (container.Panel2MinSize != safeMin2)
                 {
-                    listsContainer.Panel2MinSize = safePanelMin;
+                    container.Panel2MinSize = safeMin2;
                 }
             }
             catch
             {
-                listsContainer.Panel1MinSize = 40;
-                listsContainer.Panel2MinSize = 40;
+                return;
             }
 
-            var minLeft = listsContainer.Panel1MinSize;
-            var minRight = listsContainer.Panel2MinSize;
-
-            var maxLeft = totalWidth - minRight - splitterWidth;
-            if (maxLeft < minLeft)
+            var maxDistance = available - container.Panel2MinSize;
+            if (maxDistance < container.Panel1MinSize)
             {
-                minLeft = Math.Max(40, totalWidth / 2 - splitterWidth / 2);
-                maxLeft = minLeft;
+                return;
             }
 
-            var desired = (int)Math.Round(totalWidth * 0.48);
-            desired = Math.Clamp(desired, minLeft, maxLeft);
+            var safeDistance = Math.Clamp(desiredDistance, container.Panel1MinSize, maxDistance);
 
             try
             {
-                if (desired > 0 && desired != listsContainer.SplitterDistance)
+                if (safeDistance > 0 && safeDistance != container.SplitterDistance)
                 {
-                    listsContainer.SplitterDistance = desired;
+                    container.SplitterDistance = safeDistance;
                 }
             }
             catch
@@ -2253,231 +3005,421 @@ public sealed partial class SyncAdminForm : Form
             }
         }
 
-        listsContainer.Resize += (_, _) => ApplySafeSplitterDistance();
-        root.Controls.Add(listsContainer, 0, 3);
+        splitMain.Resize += (_, _) =>
+            ApplySafeSplitterDistance(
+                splitMain,
+                (int)Math.Round(splitMain.ClientSize.Width * 0.33),
+                minPanel1: 160,
+                minPanel2: 260);
+
+        splitBottom.Resize += (_, _) =>
+            ApplySafeSplitterDistance(
+                splitBottom,
+                (int)Math.Round(splitBottom.ClientSize.Height * 0.52),
+                minPanel1: 90,
+                minPanel2: 90);
 
         var grpExisting = new GroupBox
         {
             Dock = DockStyle.Fill,
-            Text = "Registros actuales del día",
+            Text = "Marcas registradas del día",
             Font = new Font("Segoe UI", 9F, FontStyle.Bold),
             ForeColor = Color.FromArgb(42, 52, 65),
-            Padding = new Padding(10)
+            Padding = new Padding(8)
         };
+        splitBottom.Panel1.Controls.Add(grpExisting);
 
-        var lstExisting = new ListBox
+        var dgvExisting = new DataGridView
         {
             Dock = DockStyle.Fill,
-            Font = new Font("Consolas", 9F),
-            IntegralHeight = false,
-            HorizontalScrollbar = true
+            ReadOnly = true,
+            AllowUserToAddRows = false,
+            AllowUserToDeleteRows = false,
+            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            MultiSelect = false,
+            RowHeadersVisible = false,
+            BackgroundColor = Color.White,
+            BorderStyle = BorderStyle.None
         };
-        grpExisting.Controls.Add(lstExisting);
-        listsContainer.Panel1.Controls.Add(grpExisting);
+        grpExisting.Controls.Add(dgvExisting);
 
-        var grpSuggested = new GroupBox
+        var grpPending = new GroupBox
         {
             Dock = DockStyle.Fill,
-            Text = "Faltantes sugeridos por horario",
+            Text = "Marcas a insertar",
             Font = new Font("Segoe UI", 9F, FontStyle.Bold),
             ForeColor = Color.FromArgb(42, 52, 65),
-            Padding = new Padding(10)
+            Padding = new Padding(8)
         };
+        splitBottom.Panel2.Controls.Add(grpPending);
 
-        var lstSuggested = new ListBox
+        var dgvPending = new DataGridView
         {
             Dock = DockStyle.Fill,
-            Font = new Font("Consolas", 9F),
-            IntegralHeight = false,
-            HorizontalScrollbar = true
+            ReadOnly = true,
+            AllowUserToAddRows = false,
+            AllowUserToDeleteRows = false,
+            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            MultiSelect = false,
+            RowHeadersVisible = false,
+            BackgroundColor = Color.White,
+            BorderStyle = BorderStyle.None
         };
-        grpSuggested.Controls.Add(lstSuggested);
-        listsContainer.Panel2.Controls.Add(grpSuggested);
+        grpPending.Controls.Add(dgvPending);
 
-        var lblSummary = new Label
+        var lblStatus = new Label
         {
             Dock = DockStyle.Fill,
-            Padding = new Padding(4, 4, 4, 4),
             ForeColor = Color.FromArgb(84, 92, 105),
-            Text = "Analiza faltantes para ver sugerencias."
+            Padding = new Padding(4, 6, 4, 0),
+            Text = "Selecciona un empleado para comenzar."
         };
+        rightLayout.Controls.Add(lblStatus, 0, 3);
 
-        var btnOk = new Button { Text = "Continuar", Width = 105, Height = 34, DialogResult = DialogResult.OK };
-        var btnCancel = new Button { Text = "Cancelar", Width = 95, Height = 34, DialogResult = DialogResult.Cancel };
-
-        btnOk.FlatStyle = FlatStyle.Flat;
-        btnOk.FlatAppearance.BorderSize = 0;
-        btnOk.BackColor = Color.FromArgb(0, 120, 215);
-        btnOk.ForeColor = Color.White;
-
-        btnCancel.FlatStyle = FlatStyle.Flat;
-        btnCancel.FlatAppearance.BorderColor = Color.FromArgb(210, 218, 230);
-        btnCancel.BackColor = Color.White;
-
-        ButtonStyles.ApplySecondary(btnAnalyze);
-        ButtonStyles.ApplySecondary(btnSimulate);
-
-        var footer = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 2,
-            Margin = new Padding(0)
-        };
-        footer.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        footer.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-
-        var footerButtons = new FlowLayoutPanel
+        var footerPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.RightToLeft,
             WrapContents = false,
-            Padding = new Padding(0),
             Margin = new Padding(0)
         };
-        footerButtons.Controls.Add(btnCancel);
-        footerButtons.Controls.Add(btnOk);
-
-        footer.Controls.Add(lblSummary, 0, 0);
-        footer.Controls.Add(footerButtons, 0, 1);
-        root.Controls.Add(footer, 0, 4);
+        var btnOk = new Button { Text = "Continuar", Width = 110, Height = 34, DialogResult = DialogResult.OK };
+        var btnCancel = new Button { Text = "Cancelar", Width = 95, Height = 34, DialogResult = DialogResult.Cancel };
+        ButtonStyles.ApplyPrimary(btnOk);
+        ButtonStyles.ApplySecondary(btnCancel);
+        footerPanel.Controls.Add(btnCancel);
+        footerPanel.Controls.Add(btnOk);
+        root.Controls.Add(footerPanel, 0, 2);
 
         prompt.AcceptButton = btnOk;
         prompt.CancelButton = btnCancel;
 
-        IReadOnlyList<ManualPunchEntry> simulatedEntries = Array.Empty<ManualPunchEntry>();
-        string? simulationNotes = null;
+        var existingPunches = new List<SqlPunchHistoryItem>();
+        var pendingEntries = new List<ManualPunchEntry>();
+        string scheduleDescription = "Sin horario asignado.";
+        var selectingFromCatalog = false;
 
-        async Task AnalyzeAsync(bool notifyIfNoSuggestions)
+        int? GetQuickMode()
         {
-            var userId = (int)numUser.Value;
-            var name = string.IsNullOrWhiteSpace(txtName.Text)
-                ? $"Empleado_{userId}"
-                : txtName.Text.Trim();
-            var day = dtDay.Value.Date;
-
-            var analysis = await BuildManualMissingAnalysisAsync(userId, name, day, schedulesByCode);
-            lblSchedule.Text = $"Horario: {analysis.ScheduleDescription}";
-
-            lstExisting.Items.Clear();
-            if (analysis.ExistingPunches.Count == 0)
+            return cmbQuickMode.SelectedIndex switch
             {
-                lstExisting.Items.Add("(sin registros ese día)");
-            }
-            else
-            {
-                foreach (var item in analysis.ExistingPunches)
-                {
-                    lstExisting.Items.Add($"{item.CheckTime:dd/MM HH:mm:ss} · {item.Source}");
-                }
-            }
-
-            lstSuggested.Items.Clear();
-            if (analysis.SuggestedPunches.Count == 0)
-            {
-                lstSuggested.Items.Add("(sin faltantes claros por horario)");
-            }
-            else
-            {
-                foreach (var item in analysis.SuggestedPunches)
-                {
-                    lstSuggested.Items.Add($"{item.CheckTime:dd/MM HH:mm:ss} · {FormatInOutMode(item.InOutMode)} · {item.Reason}");
-                }
-            }
-
-            simulatedEntries = analysis.SuggestedPunches
-                .Select(x => new ManualPunchEntry(x.CheckTime, x.InOutMode))
-                .ToList();
-
-            simulationNotes = analysis.ProportionWarning;
-
-            chkUseSimulation.Enabled = simulatedEntries.Count > 0;
-            chkUseSimulation.Checked = simulatedEntries.Count > 0;
-
-            if (simulatedEntries.Count > 0)
-            {
-                var first = simulatedEntries[0];
-                dtCheckTime.Value = first.CheckTime;
-                cmbMode.SelectedIndex = first.InOutMode switch
-                {
-                    0 => 1,
-                    1 => 2,
-                    _ => 0
-                };
-            }
-
-            lblSummary.Text = analysis.Summary +
-                (string.IsNullOrWhiteSpace(analysis.ProportionWarning)
-                    ? string.Empty
-                    : Environment.NewLine + analysis.ProportionWarning);
-
-            if (notifyIfNoSuggestions && simulatedEntries.Count == 0)
-            {
-                MessageBox.Show(
-                    "No se detectaron faltantes claros para simular en ese día, usando el horario asignado.",
-                    "Simulación",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
-            }
+                0 => 0,
+                1 => 2,
+                2 => 3,
+                3 => 1,
+                _ => (int?)null
+            };
         }
 
-        btnAnalyze.Click += async (_, _) =>
+        string FormatTime(DateTime? value)
+            => value.HasValue ? value.Value.ToString("HH:mm") : "-";
+
+        ManualDayProjectionRow BuildProjectionRow()
         {
-            btnAnalyze.Enabled = false;
-            btnSimulate.Enabled = false;
-            try
+            var allPunches = existingPunches
+                .Select(x => (x.CheckTime, x.InOutMode))
+                .Concat(pendingEntries.Select(x => (x.CheckTime, x.InOutMode)))
+                .OrderBy(x => x.CheckTime)
+                .ToList();
+
+            var entrada = allPunches.FirstOrDefault(x => x.InOutMode == 0).CheckTime;
+            var salidaComida = allPunches.FirstOrDefault(x => x.InOutMode == 2).CheckTime;
+            var entradaComida = allPunches.FirstOrDefault(x => x.InOutMode == 3).CheckTime;
+            var salida = allPunches.FirstOrDefault(x => x.InOutMode == 1).CheckTime;
+
+            var sinModo = allPunches
+                .Where(x => !x.InOutMode.HasValue)
+                .Select(x => x.CheckTime)
+                .ToList();
+
+            if (entrada == default && sinModo.Count > 0)
             {
-                await AnalyzeAsync(notifyIfNoSuggestions: false);
+                entrada = sinModo.First();
             }
-            catch (Exception ex)
+
+            if (salida == default && sinModo.Count > 1)
             {
-                MessageBox.Show($"No se pudo analizar faltantes.\n\n{ex.Message}", "Alta manual", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                salida = sinModo.Last();
             }
-            finally
+
+            var hasEntrada = entrada != default;
+            var hasSalida = salida != default;
+            var hasBreakOut = salidaComida != default;
+            var hasBreakIn = entradaComida != default;
+
+            var status = allPunches.Count == 0
+                ? "SIN_REGISTRO"
+                : hasEntrada && hasSalida && (hasBreakOut == hasBreakIn)
+                    ? "OK"
+                    : hasEntrada || hasSalida || hasBreakOut || hasBreakIn
+                        ? "INCOMPLETO"
+                        : "REVISAR";
+
+            return new ManualDayProjectionRow(
+                dtDay.Value.Date,
+                FormatTime(hasEntrada ? entrada : null),
+                FormatTime(hasBreakOut ? salidaComida : null),
+                FormatTime(hasBreakIn ? entradaComida : null),
+                FormatTime(hasSalida ? salida : null),
+                status);
+        }
+
+        void RefreshProjection()
+        {
+            dgvProjection.DataSource = new[] { BuildProjectionRow() };
+
+            if (dgvProjection.Columns.Contains(nameof(ManualDayProjectionRow.Day)))
             {
-                btnAnalyze.Enabled = true;
-                btnSimulate.Enabled = true;
+                dgvProjection.Columns[nameof(ManualDayProjectionRow.Day)].HeaderText = "Fecha";
+                dgvProjection.Columns[nameof(ManualDayProjectionRow.Day)].DefaultCellStyle.Format = "dd/MM/yyyy";
+                dgvProjection.Columns[nameof(ManualDayProjectionRow.Day)].FillWeight = 20;
+            }
+
+            if (dgvProjection.Columns.Contains(nameof(ManualDayProjectionRow.Entry)))
+            {
+                dgvProjection.Columns[nameof(ManualDayProjectionRow.Entry)].HeaderText = "Entrada";
+            }
+
+            if (dgvProjection.Columns.Contains(nameof(ManualDayProjectionRow.BreakOut)))
+            {
+                dgvProjection.Columns[nameof(ManualDayProjectionRow.BreakOut)].HeaderText = "Salida comida";
+            }
+
+            if (dgvProjection.Columns.Contains(nameof(ManualDayProjectionRow.BreakIn)))
+            {
+                dgvProjection.Columns[nameof(ManualDayProjectionRow.BreakIn)].HeaderText = "Entrada comida";
+            }
+
+            if (dgvProjection.Columns.Contains(nameof(ManualDayProjectionRow.Exit)))
+            {
+                dgvProjection.Columns[nameof(ManualDayProjectionRow.Exit)].HeaderText = "Salida";
+            }
+
+            if (dgvProjection.Columns.Contains(nameof(ManualDayProjectionRow.Status)))
+            {
+                dgvProjection.Columns[nameof(ManualDayProjectionRow.Status)].HeaderText = "Estado";
+                dgvProjection.Columns[nameof(ManualDayProjectionRow.Status)].FillWeight = 16;
+            }
+
+            lblStatus.Text =
+                $"{scheduleDescription}  ·  Registros actuales: {existingPunches.Count}  ·  Pendientes por insertar: {pendingEntries.Count}";
+        }
+
+        void RefreshPendingGrid()
+        {
+            pendingEntries.Sort((a, b) => a.CheckTime.CompareTo(b.CheckTime));
+            var rows = pendingEntries
+                .Select((x, idx) => new ManualPendingPunchRow(
+                    idx,
+                    idx + 1,
+                    x.CheckTime,
+                    FormatInOutMode(x.InOutMode)))
+                .ToList();
+
+            dgvPending.DataSource = rows;
+            if (dgvPending.Columns.Contains(nameof(ManualPendingPunchRow.Index)))
+            {
+                dgvPending.Columns[nameof(ManualPendingPunchRow.Index)].Visible = false;
+            }
+
+            if (dgvPending.Columns.Contains(nameof(ManualPendingPunchRow.Order)))
+            {
+                dgvPending.Columns[nameof(ManualPendingPunchRow.Order)].HeaderText = "#";
+                dgvPending.Columns[nameof(ManualPendingPunchRow.Order)].FillWeight = 10;
+            }
+
+            if (dgvPending.Columns.Contains(nameof(ManualPendingPunchRow.CheckTime)))
+            {
+                dgvPending.Columns[nameof(ManualPendingPunchRow.CheckTime)].HeaderText = "Fecha/hora";
+                dgvPending.Columns[nameof(ManualPendingPunchRow.CheckTime)].DefaultCellStyle.Format = "dd/MM/yyyy HH:mm:ss";
+                dgvPending.Columns[nameof(ManualPendingPunchRow.CheckTime)].FillWeight = 45;
+            }
+
+            if (dgvPending.Columns.Contains(nameof(ManualPendingPunchRow.ModeLabel)))
+            {
+                dgvPending.Columns[nameof(ManualPendingPunchRow.ModeLabel)].HeaderText = "Tipo";
+                dgvPending.Columns[nameof(ManualPendingPunchRow.ModeLabel)].FillWeight = 45;
+            }
+
+            RefreshProjection();
+        }
+
+        async Task LoadDayDataAsync()
+        {
+            var userId = (int)numUser.Value;
+            var day = dtDay.Value.Date;
+            var from = day;
+            var to = day.AddDays(1).AddTicks(-1);
+
+            var history = await _syncService.GetHistoryAsync(userId, from, to, maxRows: 500);
+            existingPunches = history
+                .OrderBy(x => x.CheckTime)
+                .ToList();
+
+            dgvExisting.DataSource = existingPunches
+                .Select(x => new ManualRawPunchRow(x.CheckTime, FormatInOutMode(x.InOutMode), x.Source))
+                .ToList();
+
+            if (dgvExisting.Columns.Contains(nameof(ManualRawPunchRow.CheckTime)))
+            {
+                dgvExisting.Columns[nameof(ManualRawPunchRow.CheckTime)].HeaderText = "Fecha/hora";
+                dgvExisting.Columns[nameof(ManualRawPunchRow.CheckTime)].DefaultCellStyle.Format = "dd/MM/yyyy HH:mm:ss";
+                dgvExisting.Columns[nameof(ManualRawPunchRow.CheckTime)].FillWeight = 48;
+            }
+
+            if (dgvExisting.Columns.Contains(nameof(ManualRawPunchRow.ModeLabel)))
+            {
+                dgvExisting.Columns[nameof(ManualRawPunchRow.ModeLabel)].HeaderText = "Tipo";
+                dgvExisting.Columns[nameof(ManualRawPunchRow.ModeLabel)].FillWeight = 28;
+            }
+
+            if (dgvExisting.Columns.Contains(nameof(ManualRawPunchRow.Source)))
+            {
+                dgvExisting.Columns[nameof(ManualRawPunchRow.Source)].HeaderText = "Origen";
+                dgvExisting.Columns[nameof(ManualRawPunchRow.Source)].FillWeight = 24;
+            }
+
+            var snapshot = await _syncService.GetEmployeeAdminSnapshotAsync(userId);
+            if (snapshot?.WorkScheduleCode is int code && schedulesByCode.TryGetValue(code, out var schedule))
+            {
+                scheduleDescription = $"Horario {BuildScheduleDescription(schedule)}";
+            }
+            else
+            {
+                scheduleDescription = "Horario: sin horario asignado.";
+            }
+
+            RefreshProjection();
+        }
+
+        void AddPending(int? mode)
+        {
+            pendingEntries.Add(new ManualPunchEntry(dtCheckTime.Value, mode));
+            RefreshPendingGrid();
+        }
+
+        btnAddSelected.Click += (_, _) => AddPending(GetQuickMode());
+        btnAddEntry.Click += (_, _) => AddPending(0);
+        btnAddBreakOut.Click += (_, _) => AddPending(2);
+        btnAddBreakIn.Click += (_, _) => AddPending(3);
+        btnAddExit.Click += (_, _) => AddPending(1);
+
+        btnRemovePending.Click += (_, _) =>
+        {
+            if (dgvPending.SelectedRows.Count == 0)
+            {
+                return;
+            }
+
+            var row = dgvPending.SelectedRows[0].DataBoundItem as ManualPendingPunchRow;
+            if (row is null)
+            {
+                return;
+            }
+
+            if (row.Index >= 0 && row.Index < pendingEntries.Count)
+            {
+                pendingEntries.RemoveAt(row.Index);
+                RefreshPendingGrid();
             }
         };
 
-        btnSimulate.Click += async (_, _) =>
+        btnClearPending.Click += (_, _) =>
         {
-            btnAnalyze.Enabled = false;
-            btnSimulate.Enabled = false;
+            pendingEntries.Clear();
+            RefreshPendingGrid();
+        };
+
+        async Task TryReloadAsync()
+        {
             try
             {
-                await AnalyzeAsync(notifyIfNoSuggestions: true);
-                if (simulatedEntries.Count > 0)
-                {
-                    MessageBox.Show(
-                        $"Simulación lista con {simulatedEntries.Count} marca(s). Revisa el panel derecho y decide si usarla.",
-                        "Simulación",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information);
-                }
+                await LoadDayDataAsync();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"No se pudo simular faltantes.\n\n{ex.Message}", "Alta manual", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show($"No se pudo cargar el día seleccionado.\n\n{ex.Message}", "Alta manual", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        dgvCatalog.SelectionChanged += async (_, _) =>
+        {
+            if (dgvCatalog.SelectedRows.Count == 0)
+            {
+                return;
+            }
+
+            if (dgvCatalog.SelectedRows[0].DataBoundItem is not ManualCatalogRow selected)
+            {
+                return;
+            }
+
+            selectingFromCatalog = true;
+            try
+            {
+                numUser.Value = Math.Clamp(selected.UserId, 1, 99999);
+                txtName.Text = selected.EmployeeName;
             }
             finally
             {
-                btnAnalyze.Enabled = true;
-                btnSimulate.Enabled = true;
+                selectingFromCatalog = false;
             }
+
+            pendingEntries.Clear();
+            RefreshPendingGrid();
+            await TryReloadAsync();
+        };
+
+        numUser.ValueChanged += async (_, _) =>
+        {
+            if (selectingFromCatalog)
+            {
+                return;
+            }
+
+            pendingEntries.Clear();
+            RefreshPendingGrid();
+            await TryReloadAsync();
+        };
+
+        dtDay.ValueChanged += async (_, _) =>
+        {
+            pendingEntries.Clear();
+            RefreshPendingGrid();
+            await TryReloadAsync();
         };
 
         prompt.Shown += async (_, _) =>
         {
-            ApplySafeSplitterDistance();
             try
             {
-                await AnalyzeAsync(notifyIfNoSuggestions: false);
+                ApplySafeSplitterDistance(
+                    splitMain,
+                    (int)Math.Round(splitMain.ClientSize.Width * 0.33),
+                    minPanel1: 160,
+                    minPanel2: 260);
+
+                ApplySafeSplitterDistance(
+                    splitBottom,
+                    (int)Math.Round(splitBottom.ClientSize.Height * 0.52),
+                    minPanel1: 90,
+                    minPanel2: 90);
+
+                var targetIndex = catalogRows.FindIndex(x => x.UserId == suggestedUserId);
+                if (targetIndex >= 0 && targetIndex < dgvCatalog.Rows.Count)
+                {
+                    dgvCatalog.ClearSelection();
+                    dgvCatalog.Rows[targetIndex].Selected = true;
+                    dgvCatalog.CurrentCell = dgvCatalog.Rows[targetIndex].Cells[0];
+                }
+
+                await TryReloadAsync();
             }
-            catch (Exception ex)
+            catch
             {
-                lblSchedule.Text = "Horario: no disponible";
-                lblSummary.Text = $"No se pudo precargar faltantes: {ex.Message}";
+                // Sin bloqueo de apertura por error de precarga.
             }
         };
 
@@ -2486,37 +3428,30 @@ public sealed partial class SyncAdminForm : Form
             return null;
         }
 
-        var mode = cmbMode.SelectedIndex switch
-        {
-            1 => 0,
-            2 => 1,
-            _ => (int?)null
-        };
-
         var finalUserId = (int)numUser.Value;
         var finalName = string.IsNullOrWhiteSpace(txtName.Text)
             ? $"Empleado_{finalUserId}"
             : txtName.Text.Trim();
 
-        if (chkUseSimulation.Checked && simulatedEntries.Count > 0)
+        if (pendingEntries.Count > 0)
         {
-            var first = simulatedEntries[0];
             return new ManualPunchRequest(
                 finalUserId,
                 finalName,
-                first.CheckTime,
-                first.InOutMode,
-                simulatedEntries,
-                simulationNotes);
+                pendingEntries[0].CheckTime,
+                pendingEntries[0].InOutMode,
+                pendingEntries.ToList(),
+                $"Alta visual manual ({pendingEntries.Count} marca(s)). {scheduleDescription}");
         }
 
+        var quickMode = GetQuickMode();
         return new ManualPunchRequest(
             finalUserId,
             finalName,
             dtCheckTime.Value,
-            mode,
+            quickMode,
             null,
-            simulationNotes);
+            $"Alta visual manual puntual. {scheduleDescription}");
     }
 
     private static string FormatInOutMode(int? mode)
@@ -2524,6 +3459,8 @@ public sealed partial class SyncAdminForm : Form
         return mode switch
         {
             0 => "Entrada (0)",
+            2 => "Salida comida (2)",
+            3 => "Entrada comida (3)",
             1 => "Salida (1)",
             _ => "Sin modo (null)"
         };
@@ -2638,6 +3575,119 @@ public sealed partial class SyncAdminForm : Form
         var end = DateTime.Today.Add(schedule.EndTime).ToString("HH:mm");
         var overnight = schedule.EndTime <= schedule.StartTime ? " (turno nocturno)" : string.Empty;
         return $"{schedule.Code} - {schedule.Name}: {start} a {end}{overnight}. Jornada estándar: {schedule.StandardHours:0.##} h.";
+    }
+
+    private static NightShiftCleanupRequest? PromptNightShiftCleanupData(int? suggestedUserId)
+    {
+        using var prompt = new Form
+        {
+            Width = 620,
+            Height = 330,
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            Text = "Limpieza correctiva nocturna (Pervasive)",
+            StartPosition = FormStartPosition.CenterParent,
+            MinimizeBox = false,
+            MaximizeBox = false,
+            BackColor = Color.FromArgb(245, 248, 252)
+        };
+
+        var lblHint = new Label
+        {
+            Left = 20,
+            Top = 16,
+            Width = 560,
+            Height = 54,
+            ForeColor = Color.FromArgb(42, 52, 65),
+            Text = "Recalcula renglones de horario 3 por rango y elimina renglones huérfanos\n" +
+                   "que quedaron partidos entre entrada/salida en días distintos."
+        };
+
+        var lblFrom = new Label { Left = 20, Top = 88, Width = 120, Text = "Fecha inicio:" };
+        var dtFrom = new DateTimePicker
+        {
+            Left = 150,
+            Top = 84,
+            Width = 150,
+            Format = DateTimePickerFormat.Short,
+            Value = DateTime.Today.AddDays(-60)
+        };
+
+        var lblTo = new Label { Left = 320, Top = 88, Width = 100, Text = "Fecha fin:" };
+        var dtTo = new DateTimePicker
+        {
+            Left = 400,
+            Top = 84,
+            Width = 150,
+            Format = DateTimePickerFormat.Short,
+            Value = DateTime.Today
+        };
+
+        var chkOnlyUser = new CheckBox
+        {
+            Left = 20,
+            Top = 132,
+            Width = 260,
+            Text = "Limpiar solo un USERID específico"
+        };
+
+        var numUser = new NumericUpDown
+        {
+            Left = 290,
+            Top = 128,
+            Width = 120,
+            Minimum = 1,
+            Maximum = 99999,
+            Enabled = false,
+            Value = Math.Clamp(suggestedUserId ?? 1, 1, 99999)
+        };
+
+        var lblWarn = new Label
+        {
+            Left = 20,
+            Top = 172,
+            Width = 560,
+            Height = 54,
+            ForeColor = Color.FromArgb(134, 74, 20),
+            Text = "Recomendado: ejecutar primero un rango corto (15-30 días), revisar resultado,\n" +
+                   "y después ampliar si es necesario."
+        };
+
+        chkOnlyUser.CheckedChanged += (_, _) => numUser.Enabled = chkOnlyUser.Checked;
+
+        var btnOk = new Button { Text = "Ejecutar", Left = 382, Top = 238, Width = 100, Height = 34, DialogResult = DialogResult.OK };
+        var btnCancel = new Button { Text = "Cancelar", Left = 490, Top = 238, Width = 90, Height = 34, DialogResult = DialogResult.Cancel };
+
+        btnOk.FlatStyle = FlatStyle.Flat;
+        btnOk.FlatAppearance.BorderSize = 0;
+        btnOk.BackColor = Color.FromArgb(0, 120, 215);
+        btnOk.ForeColor = Color.White;
+
+        btnCancel.FlatStyle = FlatStyle.Flat;
+        btnCancel.FlatAppearance.BorderColor = Color.FromArgb(210, 218, 230);
+        btnCancel.BackColor = Color.White;
+
+        prompt.Controls.Add(lblHint);
+        prompt.Controls.Add(lblFrom);
+        prompt.Controls.Add(dtFrom);
+        prompt.Controls.Add(lblTo);
+        prompt.Controls.Add(dtTo);
+        prompt.Controls.Add(chkOnlyUser);
+        prompt.Controls.Add(numUser);
+        prompt.Controls.Add(lblWarn);
+        prompt.Controls.Add(btnOk);
+        prompt.Controls.Add(btnCancel);
+        prompt.AcceptButton = btnOk;
+        prompt.CancelButton = btnCancel;
+
+        if (prompt.ShowDialog() != DialogResult.OK)
+        {
+            return null;
+        }
+
+        return new NightShiftCleanupRequest(
+            dtFrom.Value.Date,
+            dtTo.Value.Date,
+            chkOnlyUser.Checked ? Convert.ToInt32(numUser.Value) : null);
     }
 
     private static EmployeeReassignRequest? PromptEmployeeReassignData(int suggestedOldUserId, string initialName, string? initialDept, string? initialShift)
@@ -2786,8 +3836,8 @@ public sealed partial class SyncAdminForm : Form
         string EmployeeName,
         DateTime CheckTime,
         int? InOutMode,
-        IReadOnlyList<ManualPunchEntry>? SimulatedEntries,
-        string? SimulationNotes);
+        IReadOnlyList<ManualPunchEntry>? BatchEntries,
+        string? Notes);
 
     private sealed record ManualExistingPunch(DateTime CheckTime, string Source);
 
@@ -2800,7 +3850,34 @@ public sealed partial class SyncAdminForm : Form
         string Summary,
         string? ProportionWarning);
 
+    private sealed record ManualCatalogRow(
+        int UserId,
+        string EmployeeName,
+        string Department,
+        string ScheduleCode);
+
+    private sealed record ManualDayProjectionRow(
+        DateTime Day,
+        string Entry,
+        string BreakOut,
+        string BreakIn,
+        string Exit,
+        string Status);
+
+    private sealed record ManualRawPunchRow(
+        DateTime CheckTime,
+        string ModeLabel,
+        string Source);
+
+    private sealed record ManualPendingPunchRow(
+        int Index,
+        int Order,
+        DateTime CheckTime,
+        string ModeLabel);
+
     private sealed record EmployeeAdminEditData(string Name, string? Department, string? Position, string? PervasiveDept, string? PervasiveShift, int? WorkScheduleCode, bool OvertimeAuthorized);
+
+    private sealed record NightShiftCleanupRequest(DateTime FromDate, DateTime ToDate, int? UserId);
 
     private sealed record EmployeeReassignRequest(int OldUserId, int NewUserId, DateTime FromDate, DateTime ToDate, string? NewName, string? NewPervasiveDept, string? NewPervasiveShift);
 

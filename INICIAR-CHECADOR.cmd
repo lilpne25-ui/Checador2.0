@@ -84,7 +84,16 @@ if defined EXE_TS (
     echo [Checador] Ejecutable Release detectado. Ultima compilacion: %EXE_TS%
 )
 
-start "Checador 2.0" "%EXE%"
+call :launch_foreground "%EXE%"
+exit /b %errorlevel%
+
+:launch_foreground
+set "LAUNCH_EXE=%~1"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$exe=(Resolve-Path -LiteralPath $env:LAUNCH_EXE -ErrorAction Stop).Path; $p=Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe -Parent) -PassThru -WindowStyle Normal; try { $ws=New-Object -ComObject WScript.Shell; for($i=0; $i -lt 8; $i++){ if($ws.AppActivate($p.Id)){ break }; Start-Sleep -Milliseconds 200 } } catch {}" >nul 2>&1
+if errorlevel 1 (
+    start "Checador 2.0" /D "%~dp1" "%~f1"
+    exit /b 0
+)
 exit /b 0
 
 :build_release

@@ -21,9 +21,9 @@ Sistema empresarial para sincronizar asistencias desde checador ZKTeco hacia SQL
 3. Procesa jornadas con heurísticas de `InOutMode` (incluyendo casos invertidos/ruidosos).
 4. Calcula horas trabajadas y horas extra con autorización por empleado.
 5. Aplica reglas por horario para conteo de extra:
-    - Horario 1: extra desde `07:00`
-    - Horario 2: extra desde `08:00`
-    - Horario 3: extra desde `18:00`
+   - Horario 1: extra desde `07:00`
+   - Horario 2: extra desde `08:00`
+   - Horario 3: extra desde `18:00`
 6. Genera reporte con plantilla corporativa (`formato.xlsx` / `formato.xlsm`) y opción PDF.
 7. Permite espejo a Pervasive (`TIME_ATTENDANCE`) con preview y candados operativos.
 
@@ -67,14 +67,27 @@ Sistema empresarial para sincronizar asistencias desde checador ZKTeco hacia SQL
 4. ACE OLEDB únicamente si usarás Access/fallback.
 5. Permisos de red en rutas UNC configuradas para plantillas/salidas.
 
+### Requisito especial: COM ZKTeco (`zkemkeeper`)
+
+Si en otra PC aparece el mensaje `No se encontró zkemkeeper (CZKEM/ZKEM)`, ejecuta:
+
+1. Instalar SDK StandAlone de ZKTeco (x86).
+2. Abrir PowerShell **como Administrador** en la raíz del proyecto.
+3. Ejecutar:
+
+- `.\instalar-zkteco-sdk-admin.ps1`
+- (opcional) `.\instalar-zkteco-sdk-admin.ps1 -DllPath "C:\Ruta\zkemkeeper.dll"`
+
+El script valida ProgID/CLSID y registra `zkemkeeper.dll` con `regsvr32` x86 (`SysWOW64`).
+
 ## Arranque rápido
 
 - Desktop (recomendado para operación diaria):
-   - `INICIAR-CHECADOR.cmd`
+  - `INICIAR-CHECADOR.cmd`
 - SyncAgent:
-   - `INICIAR-SYNCAGENT.cmd`
+  - `INICIAR-SYNCAGENT.cmd`
 - Sincronizar config fuente -> bin:
-   - `SINCRONIZAR-CONFIG.cmd`
+  - `SINCRONIZAR-CONFIG.cmd`
 
 ## Operación en `Admin SQL` (Desktop)
 
@@ -90,13 +103,13 @@ Desde el botón **Admin SQL** puedes:
 ## Comandos útiles de consola
 
 - Modo interactivo (reporte por empleado/rango):
-   - `dotnet run --project src/Checador.ConsoleApp/Checador.ConsoleApp.csproj`
+  - `dotnet run --project src/Checador.ConsoleApp/Checador.ConsoleApp.csproj`
 - Daemon de sincronización:
-   - `dotnet run --project src/Checador.ConsoleApp/Checador.ConsoleApp.csproj -- --daemon-sync`
+  - `dotnet run --project src/Checador.ConsoleApp/Checador.ConsoleApp.csproj -- --daemon-sync`
 - Reconciliación excepcional marzo 2026:
-   - `dotnet run --project src/Checador.ConsoleApp/Checador.ConsoleApp.csproj -- --reconcile-march-2026-once`
+  - `dotnet run --project src/Checador.ConsoleApp/Checador.ConsoleApp.csproj -- --reconcile-march-2026-once`
 - Auditoría marzo (detalle completo):
-   - `dotnet run --project src/Checador.ConsoleApp/Checador.ConsoleApp.csproj -- --audit-march-2026-full-detail`
+  - `dotnet run --project src/Checador.ConsoleApp/Checador.ConsoleApp.csproj -- --audit-march-2026-full-detail`
 
 ## Reportes
 
@@ -113,6 +126,10 @@ Pasos mínimos:
 
 1. Clonar repo.
 2. Configurar `appsettings.local.json` (Desktop/Console/SyncAgent) con conexión SQL destino.
+   - Puedes partir de estas plantillas:
+   - `src/Checador.Desktop/appsettings.local.example.json`
+   - `src/Checador.ConsoleApp/appsettings.local.example.json`
+   - `src/Checador.SyncAgent/appsettings.local.example.json`
 3. Ejecutar `INICIAR-CHECADOR.cmd` o `dotnet run`.
 4. Primer flujo SQL crea la estructura necesaria si no existe.
 

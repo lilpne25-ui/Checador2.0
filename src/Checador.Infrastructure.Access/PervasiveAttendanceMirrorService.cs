@@ -92,13 +92,11 @@ public sealed class PervasiveAttendanceMirrorService
         }
 
         var attendanceTable = EscapeIdentifier(_options.AttendanceTable, "TIME_ATTENDANCE");
-        var employeeNameById = employees
-            .GroupBy(e => e.UserId)
-            .ToDictionary(g => g.Key, g => g.First().EmployeeName);
+        var employeeNameById = BuildCanonicalEmployeeNameByUserId(employees, punches);
 
         var grouped = punches
             .OrderBy(p => p.CheckTime)
-            .GroupBy(p => (p.UserId, Date: p.CheckTime.Date))
+            .GroupBy(p => (p.UserId, Date: ResolveMirrorGroupDate(p, employeeMeta)))
             .OrderByDescending(g => g.Key.Date)
             .ThenBy(g => g.Key.UserId)
             .ToList();
@@ -144,6 +142,7 @@ public sealed class PervasiveAttendanceMirrorService
                 skipped++;
                 continue;
             }
+            ordered = ApplyMirrorShiftContext(userId, ordered, employeeMeta);
 
             var entryPunch = ResolveMirrorEntryPunch(ordered);
             if (entryPunch is null)
@@ -169,9 +168,7 @@ public sealed class PervasiveAttendanceMirrorService
             var deptLabel = NormalizeDeptLabel(meta.Department, _options.DefaultDepartment);
             var shiftCode = NormalizeShiftCode(meta.Shift, _options.DefaultShift);
 
-            var employeeName = employeeNameById.TryGetValue(userId, out var name) && !string.IsNullOrWhiteSpace(name)
-                ? name
-                : mainPunch.EmployeeName;
+            var employeeName = ResolveEmployeeNameForUser(userId, employeeNameById, mainPunch.EmployeeName);
 
             var completed = false;
             for (var attempt = 1; attempt <= TimeoutRetryAttempts && !completed; attempt++)
@@ -306,13 +303,11 @@ public sealed class PervasiveAttendanceMirrorService
         }
 
         var attendanceTable = EscapeIdentifier(_options.AttendanceTable, "TIME_ATTENDANCE");
-        var employeeNameById = employees
-            .GroupBy(e => e.UserId)
-            .ToDictionary(g => g.Key, g => g.First().EmployeeName);
+        var employeeNameById = BuildCanonicalEmployeeNameByUserId(employees, punches);
 
         var grouped = punches
             .OrderBy(p => p.CheckTime)
-            .GroupBy(p => (p.UserId, Date: p.CheckTime.Date))
+            .GroupBy(p => (p.UserId, Date: ResolveMirrorGroupDate(p, employeeMeta)))
             .ToList();
 
         var writableGroups = OnlyCurrentDayWrites
@@ -359,12 +354,11 @@ public sealed class PervasiveAttendanceMirrorService
             {
                 continue;
             }
+            ordered = ApplyMirrorShiftContext(userId, ordered, employeeMeta);
 
             var employeeCode = FormatEmployeeId(userId);
             var employeeNameFromPunch = ordered.First().EmployeeName;
-            var previewName = employeeNameById.TryGetValue(userId, out var loadedName) && !string.IsNullOrWhiteSpace(loadedName)
-                ? loadedName
-                : employeeNameFromPunch;
+            var previewName = ResolveEmployeeNameForUser(userId, employeeNameById, employeeNameFromPunch);
 
             if (OnlyCurrentDayWrites && dayGroup.Key.Date != DateTime.Today)
             {
@@ -446,9 +440,7 @@ public sealed class PervasiveAttendanceMirrorService
             var deptLabel = NormalizeDeptLabel(meta.Department, _options.DefaultDepartment);
             var shiftCode = NormalizeShiftCode(meta.Shift, _options.DefaultShift);
 
-            var employeeName = employeeNameById.TryGetValue(userId, out var name) && !string.IsNullOrWhiteSpace(name)
-                ? name
-                : ordered.First().EmployeeName;
+            var employeeName = ResolveEmployeeNameForUser(userId, employeeNameById, ordered.First().EmployeeName);
 
             foreach (var segment in segments)
             {
@@ -514,13 +506,11 @@ public sealed class PervasiveAttendanceMirrorService
         }
 
         var attendanceTable = EscapeIdentifier(_options.AttendanceTable, "TIME_ATTENDANCE");
-        var employeeNameById = employees
-            .GroupBy(e => e.UserId)
-            .ToDictionary(g => g.Key, g => g.First().EmployeeName);
+        var employeeNameById = BuildCanonicalEmployeeNameByUserId(employees, punches);
 
         var grouped = punches
             .OrderByDescending(p => p.CheckTime)
-            .GroupBy(p => (p.UserId, Date: p.CheckTime.Date))
+            .GroupBy(p => (p.UserId, Date: ResolveMirrorGroupDate(p, employeeMeta)))
             .OrderByDescending(g => g.Key.Date)
             .ThenBy(g => g.Key.UserId)
             .ToList();
@@ -554,6 +544,7 @@ public sealed class PervasiveAttendanceMirrorService
                 skipped++;
                 continue;
             }
+            ordered = ApplyMirrorShiftContext(userId, ordered, employeeMeta);
 
             var entryPunch = ResolveMirrorEntryPunch(ordered);
             if (entryPunch is null)
@@ -570,9 +561,7 @@ public sealed class PervasiveAttendanceMirrorService
             }
 
             var employeeCode = FormatEmployeeId(userId);
-            var employeeName = employeeNameById.TryGetValue(userId, out var name) && !string.IsNullOrWhiteSpace(name)
-                ? name
-                : entryPunch.EmployeeName;
+            var employeeName = ResolveEmployeeNameForUser(userId, employeeNameById, entryPunch.EmployeeName);
 
             var meta = (Department: (string?)null, Shift: (string?)null);
             if (employeeMeta is not null && employeeMeta.TryGetValue(userId, out var loadedMeta))
@@ -671,6 +660,252 @@ public sealed class PervasiveAttendanceMirrorService
 
         return new PervasiveMirrorResult(inserted, updated, skipped,
             $"Espejo Pervasive CONTINGENCIA-RAPIDA. Insertados={inserted}, actualizados={updated}, actualizados_correctivo={correctiveUpdated}, omitidos={skipped}.");
+    }
+
+    public async Task<int> CleanupNightShiftSplitRowsAsync(
+        DateTime fromDate,
+        DateTime toDate,
+        IReadOnlyCollection<int> userIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsEnabled || IsSimulationMode)
+        {
+            return 0;
+        }
+
+        if (userIds.Count == 0)
+        {
+            return 0;
+        }
+
+        var from = fromDate.Date;
+        var to = toDate.Date;
+        if (from > to)
+        {
+            (from, to) = (to, from);
+        }
+
+        var attendanceTable = EscapeIdentifier(_options.AttendanceTable, "TIME_ATTENDANCE");
+        var fromToken = FormatDate(from);
+        var toToken = FormatDate(to);
+        var employeeCodes = userIds
+            .Where(x => x > 0)
+            .Select(FormatEmployeeId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (employeeCodes.Count == 0)
+        {
+            return 0;
+        }
+
+        var deletedRows = 0;
+        await using var connection = new OdbcConnection(_options.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var tx = (OdbcTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            foreach (var employeeCode in employeeCodes)
+            {
+                var candidates = await GetNightShiftSplitCandidatesAsync(
+                    connection,
+                    tx,
+                    attendanceTable,
+                    employeeCode,
+                    fromToken,
+                    toToken,
+                    cancellationToken);
+
+                foreach (var candidate in candidates)
+                {
+                    var hasPreviousNightLink = await HasPreviousNightLinkedRowAsync(
+                        connection,
+                        tx,
+                        attendanceTable,
+                        employeeCode,
+                        candidate.DateIn,
+                        candidate.TimeIn,
+                        cancellationToken);
+
+                    if (!hasPreviousNightLink)
+                    {
+                        continue;
+                    }
+
+                    var removed = await DeleteAttendanceSegmentByInAsync(
+                        connection,
+                        tx,
+                        attendanceTable,
+                        employeeCode,
+                        candidate.ChargeDate,
+                        candidate.DateIn,
+                        candidate.TimeIn,
+                        cancellationToken);
+
+                    if (removed)
+                    {
+                        deletedRows++;
+                    }
+                }
+            }
+
+            await tx.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            try { await tx.RollbackAsync(cancellationToken); } catch { }
+            throw;
+        }
+
+        return deletedRows;
+    }
+
+    public async Task<int> NormalizeNightShiftEmployeeNamesAsync(
+        DateTime fromDate,
+        DateTime toDate,
+        IReadOnlyDictionary<int, string> userNameById,
+        IReadOnlyCollection<int> userIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsEnabled || IsSimulationMode || userIds.Count == 0)
+        {
+            return 0;
+        }
+
+        var from = fromDate.Date;
+        var to = toDate.Date;
+        if (from > to)
+        {
+            (from, to) = (to, from);
+        }
+
+        var attendanceTable = EscapeIdentifier(_options.AttendanceTable, "TIME_ATTENDANCE");
+        var fromToken = FormatDate(from);
+        var toToken = FormatDate(to);
+
+        var updatedRows = 0;
+        var now = DateTime.Now;
+        await using var connection = new OdbcConnection(_options.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var tx = (OdbcTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            foreach (var userId in userIds.Where(x => x > 0).Distinct().OrderBy(x => x))
+            {
+                var employeeCode = FormatEmployeeId(userId);
+                var canonicalName = userNameById.TryGetValue(userId, out var loaded)
+                    ? NormalizeEmployeeName(loaded)
+                    : string.Empty;
+
+                if (string.IsNullOrWhiteSpace(canonicalName))
+                {
+                    continue;
+                }
+
+                var sql = $@"
+UPDATE {attendanceTable}
+SET NAME = ?,
+    ACTUAL_DATE = ?,
+    DATE_LAST_CHG = ?,
+    TIME_LAST_CHG = ?,
+    LAST_CHG_BY = ?,
+    LAST_CHG_PROG = ?
+WHERE EMPLOYEE = ?
+  AND SHIFT = '3'
+  AND CHARGE_DATE >= ?
+  AND CHARGE_DATE <= ?";
+
+                await using var cmd = new OdbcCommand(sql, connection, tx);
+                cmd.CommandTimeout = _options.CommandTimeoutSeconds;
+                cmd.Parameters.AddWithValue("@P1", canonicalName);
+                cmd.Parameters.AddWithValue("@P2", FormatActualDate(now));
+                cmd.Parameters.AddWithValue("@P3", FormatDate(now));
+                cmd.Parameters.AddWithValue("@P4", FormatTime(now) + "00");
+                cmd.Parameters.AddWithValue("@P5", employeeCode);
+                cmd.Parameters.AddWithValue("@P6", MirrorProgramName);
+                cmd.Parameters.AddWithValue("@P7", employeeCode);
+                cmd.Parameters.AddWithValue("@P8", fromToken);
+                cmd.Parameters.AddWithValue("@P9", toToken);
+
+                var affected = await cmd.ExecuteNonQueryAsync(cancellationToken);
+                if (affected > 0)
+                {
+                    updatedRows += affected;
+                }
+            }
+
+            await tx.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            try { await tx.RollbackAsync(cancellationToken); } catch { }
+            throw;
+        }
+
+        return updatedRows;
+    }
+
+    public async Task<int> CountNightShiftSplitRowsAsync(
+        DateTime fromDate,
+        DateTime toDate,
+        IReadOnlyCollection<int> userIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsEnabled || userIds.Count == 0)
+        {
+            return 0;
+        }
+
+        var from = fromDate.Date;
+        var to = toDate.Date;
+        if (from > to)
+        {
+            (from, to) = (to, from);
+        }
+
+        var attendanceTable = EscapeIdentifier(_options.AttendanceTable, "TIME_ATTENDANCE");
+        var fromToken = FormatDate(from);
+        var toToken = FormatDate(to);
+        var total = 0;
+
+        await using var connection = new OdbcConnection(_options.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        foreach (var userId in userIds.Where(x => x > 0).Distinct().OrderBy(x => x))
+        {
+            var employeeCode = FormatEmployeeId(userId);
+            var sql = $@"
+SELECT COUNT(1)
+FROM {attendanceTable} c
+WHERE c.EMPLOYEE = ?
+  AND c.SHIFT = '3'
+  AND c.DATE_IN >= ?
+  AND c.DATE_IN <= ?
+  AND c.DATE_IN <> '00000000'
+  AND c.TIME_IN <> '000000'
+  AND c.TIME_IN < '120000'
+  AND EXISTS
+      (
+          SELECT 1
+          FROM {attendanceTable} p
+          WHERE p.EMPLOYEE = c.EMPLOYEE
+            AND p.SHIFT = '3'
+            AND p.DATE_IN < c.DATE_IN
+            AND p.DATE_OUT = c.DATE_IN
+            AND p.TIME_OUT = c.TIME_IN
+            AND p.TIME_IN >= '120000'
+      )";
+
+            await using var cmd = new OdbcCommand(sql, connection);
+            cmd.CommandTimeout = _options.CommandTimeoutSeconds;
+            cmd.Parameters.AddWithValue("@P1", employeeCode);
+            cmd.Parameters.AddWithValue("@P2", fromToken);
+            cmd.Parameters.AddWithValue("@P3", toToken);
+            var result = await cmd.ExecuteScalarAsync(cancellationToken);
+            total += result is null or DBNull ? 0 : Convert.ToInt32(result);
+        }
+
+        return total;
     }
 
     public async Task<PervasiveEmployeeRemapPreviewResult> PreviewEmployeeRemapByDateRangeAsync(
@@ -951,6 +1186,112 @@ WHERE EMPLOYEE = ?
         cmd.Parameters.AddWithValue("@CHARGE_DATE", FormatDate(matchInTime.Date));
         cmd.Parameters.AddWithValue("@MATCH_DATE_IN", FormatDate(matchInTime));
         cmd.Parameters.AddWithValue("@MATCH_TIME_IN", FormatTime(matchInTime));
+
+        var affected = await cmd.ExecuteNonQueryAsync(cancellationToken);
+        return affected > 0;
+    }
+
+    private async Task<IReadOnlyList<NightShiftSplitCandidate>> GetNightShiftSplitCandidatesAsync(
+        OdbcConnection connection,
+        OdbcTransaction tx,
+        string attendanceTable,
+        string employeeCode,
+        string fromDateToken,
+        string toDateToken,
+        CancellationToken cancellationToken)
+    {
+        var sql = $@"
+SELECT CHARGE_DATE, DATE_IN, TIME_IN
+FROM {attendanceTable}
+WHERE EMPLOYEE = ?
+  AND SHIFT = '3'
+  AND DATE_IN >= ?
+  AND DATE_IN <= ?
+  AND DATE_IN <> '00000000'
+  AND TIME_IN <> '000000'
+  AND TIME_IN < '120000'
+ORDER BY DATE_IN, TIME_IN";
+
+        await using var cmd = new OdbcCommand(sql, connection, tx);
+        cmd.CommandTimeout = _options.CommandTimeoutSeconds;
+        cmd.Parameters.AddWithValue("@P1", employeeCode);
+        cmd.Parameters.AddWithValue("@P2", fromDateToken);
+        cmd.Parameters.AddWithValue("@P3", toDateToken);
+
+        var rows = new List<NightShiftSplitCandidate>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var chargeDate = await reader.IsDBNullAsync(0, cancellationToken) ? null : Convert.ToString(reader[0]);
+            var dateIn = await reader.IsDBNullAsync(1, cancellationToken) ? null : Convert.ToString(reader[1]);
+            var timeIn = await reader.IsDBNullAsync(2, cancellationToken) ? null : Convert.ToString(reader[2]);
+
+            if (string.IsNullOrWhiteSpace(chargeDate)
+                || string.IsNullOrWhiteSpace(dateIn)
+                || string.IsNullOrWhiteSpace(timeIn))
+            {
+                continue;
+            }
+
+            rows.Add(new NightShiftSplitCandidate(chargeDate, dateIn, timeIn));
+        }
+
+        return rows;
+    }
+
+    private async Task<bool> HasPreviousNightLinkedRowAsync(
+        OdbcConnection connection,
+        OdbcTransaction tx,
+        string attendanceTable,
+        string employeeCode,
+        string dateIn,
+        string timeIn,
+        CancellationToken cancellationToken)
+    {
+        var sql = $@"
+SELECT EMPLOYEE
+FROM {attendanceTable}
+WHERE EMPLOYEE = ?
+  AND SHIFT = '3'
+  AND DATE_IN < ?
+  AND DATE_OUT = ?
+  AND TIME_OUT = ?
+  AND TIME_IN >= '120000'";
+
+        await using var cmd = new OdbcCommand(sql, connection, tx);
+        cmd.CommandTimeout = _options.CommandTimeoutSeconds;
+        cmd.Parameters.AddWithValue("@P1", employeeCode);
+        cmd.Parameters.AddWithValue("@P2", dateIn);
+        cmd.Parameters.AddWithValue("@P3", dateIn);
+        cmd.Parameters.AddWithValue("@P4", timeIn);
+
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken);
+    }
+
+    private async Task<bool> DeleteAttendanceSegmentByInAsync(
+        OdbcConnection connection,
+        OdbcTransaction tx,
+        string attendanceTable,
+        string employeeCode,
+        string chargeDate,
+        string dateIn,
+        string timeIn,
+        CancellationToken cancellationToken)
+    {
+        var sql = $@"
+DELETE FROM {attendanceTable}
+WHERE EMPLOYEE = ?
+  AND CHARGE_DATE = ?
+  AND DATE_IN = ?
+  AND TIME_IN = ?";
+
+        await using var cmd = new OdbcCommand(sql, connection, tx);
+        cmd.CommandTimeout = _options.CommandTimeoutSeconds;
+        cmd.Parameters.AddWithValue("@P1", employeeCode);
+        cmd.Parameters.AddWithValue("@P2", chargeDate);
+        cmd.Parameters.AddWithValue("@P3", dateIn);
+        cmd.Parameters.AddWithValue("@P4", timeIn);
 
         var affected = await cmd.ExecuteNonQueryAsync(cancellationToken);
         return affected > 0;
@@ -1420,6 +1761,134 @@ WHERE EMPLOYEE = ? AND CHARGE_DATE = ?";
         return userId.ToString("D5");
     }
 
+    private Dictionary<int, string> BuildCanonicalEmployeeNameByUserId(
+        IReadOnlyList<EmployeeInfo> employees,
+        IReadOnlyList<PunchRecord> punches)
+    {
+        var result = new Dictionary<int, string>();
+
+        // Regla principal: si existe nombre en catálogo SQL para el USERID, ese es el que manda.
+        foreach (var group in employees.GroupBy(x => x.UserId))
+        {
+            var preferredSqlName = group
+                .Select(x => NormalizeEmployeeName(x.EmployeeName))
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .OrderByDescending(x => x.Length)
+                .ThenBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+
+            if (!string.IsNullOrWhiteSpace(preferredSqlName))
+            {
+                result[group.Key] = preferredSqlName;
+            }
+        }
+
+        // Solo si no hay nombre en SQL para ese USERID, usar fallback desde marcas.
+        foreach (var punch in punches)
+        {
+            if (result.ContainsKey(punch.UserId))
+            {
+                continue;
+            }
+
+            var fallbackName = NormalizeEmployeeName(punch.EmployeeName);
+            if (!string.IsNullOrWhiteSpace(fallbackName))
+            {
+                result[punch.UserId] = fallbackName;
+            }
+        }
+
+        return result;
+    }
+
+    private static string ResolveEmployeeNameForUser(
+        int userId,
+        IReadOnlyDictionary<int, string> employeeNameById,
+        string? fallbackName)
+    {
+        if (employeeNameById.TryGetValue(userId, out var loadedName) && !string.IsNullOrWhiteSpace(loadedName))
+        {
+            return loadedName;
+        }
+
+        var normalizedFallback = NormalizeEmployeeName(fallbackName);
+        return string.IsNullOrWhiteSpace(normalizedFallback)
+            ? $"Empleado_{userId}"
+            : normalizedFallback;
+    }
+
+    private static string NormalizeEmployeeName(string? rawName)
+    {
+        if (string.IsNullOrWhiteSpace(rawName))
+        {
+            return string.Empty;
+        }
+
+        var tokens = rawName
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return string.Join(' ', tokens).Trim();
+    }
+
+    private DateTime ResolveMirrorGroupDate(
+        PunchRecord punch,
+        IReadOnlyDictionary<int, (string? Department, string? Shift)>? employeeMeta)
+    {
+        if (IsNightShiftForGrouping(punch, employeeMeta)
+            && punch.CheckTime.TimeOfDay < MiddayBoundary)
+        {
+            return punch.CheckTime.Date.AddDays(-1);
+        }
+
+        return punch.CheckTime.Date;
+    }
+
+    private bool IsNightShiftForGrouping(
+        PunchRecord punch,
+        IReadOnlyDictionary<int, (string? Department, string? Shift)>? employeeMeta)
+    {
+        if (punch.IsNightShift == true || punch.WorkScheduleCode == 3)
+        {
+            return true;
+        }
+
+        if (employeeMeta is null || !employeeMeta.TryGetValue(punch.UserId, out var meta))
+        {
+            return false;
+        }
+
+        var shiftCode = NormalizeShiftCode(meta.Shift, _options.DefaultShift);
+        return string.Equals(shiftCode, "3", StringComparison.Ordinal);
+    }
+
+    private List<PunchRecord> ApplyMirrorShiftContext(
+        int userId,
+        List<PunchRecord> ordered,
+        IReadOnlyDictionary<int, (string? Department, string? Shift)>? employeeMeta)
+    {
+        if (ordered.Count == 0 || employeeMeta is null || !employeeMeta.TryGetValue(userId, out var meta))
+        {
+            return ordered;
+        }
+
+        var shiftCode = NormalizeShiftCode(meta.Shift, _options.DefaultShift);
+        if (!string.Equals(shiftCode, "3", StringComparison.Ordinal))
+        {
+            return ordered;
+        }
+
+        var enriched = new List<PunchRecord>(ordered.Count);
+        foreach (var punch in ordered)
+        {
+            enriched.Add(punch with
+            {
+                WorkScheduleCode = punch.WorkScheduleCode ?? 3,
+                IsNightShift = punch.IsNightShift ?? true
+            });
+        }
+
+        return enriched;
+    }
+
     private static string NormalizeDeptLabel(string? value, string? fallback)
     {
         var input = string.IsNullOrWhiteSpace(value) ? fallback : value;
@@ -1511,6 +1980,11 @@ WHERE EMPLOYEE = ? AND CHARGE_DATE = ?";
         }
 
         var firstPunch = ordered[0];
+        if (ordered.Count == 1 && ShouldTreatSinglePunchAsExitInDayShift(firstPunch))
+        {
+            return null;
+        }
+
         var hasTypedMode = ordered.Any(x => x.InOutMode.HasValue);
         if (!hasTypedMode)
         {
@@ -1655,6 +2129,16 @@ WHERE EMPLOYEE = ? AND CHARGE_DATE = ?";
 
         var spanMinutes = (ordered[^1].CheckTime - ordered[0].CheckTime).TotalMinutes;
         return spanMinutes >= MinChronologicalFallbackSpanMinutes;
+    }
+
+    private static bool ShouldTreatSinglePunchAsExitInDayShift(PunchRecord punch)
+    {
+        if (punch.IsNightShift == true || punch.WorkScheduleCode == 3)
+        {
+            return false;
+        }
+
+        return punch.CheckTime.TimeOfDay >= MiddayBoundary;
     }
 
     private bool IsEligibleOutForClosure(int? mode)
@@ -1904,6 +2388,8 @@ ORDER BY CHARGE_DATE";
         var trimmed = value?.Trim();
         return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
     }
+
+    private sealed record NightShiftSplitCandidate(string ChargeDate, string DateIn, string TimeIn);
 
     private sealed record MirrorSegment(DateTime InTime, DateTime? OutTime, bool IsIntermediate, string? Note);
 }

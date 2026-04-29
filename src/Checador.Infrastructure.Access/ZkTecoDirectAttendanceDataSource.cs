@@ -172,7 +172,7 @@ public sealed class ZkTecoDirectAttendanceDataSource : IAttendanceDataSource
             string? payload = null;
             var methodsTried = new List<string>();
 
-            if (TryReadFacePayload(sdk, machine, enroll, methodsTried, out payload))
+            if (TryReadFacePayload((object)sdk, machine, enroll, methodsTried, out payload))
             {
                 if (TryDecodeImagePayload(payload, out var bytes, out var contentType))
                 {
@@ -647,8 +647,9 @@ public sealed class ZkTecoDirectAttendanceDataSource : IAttendanceDataSource
         }
     }
 
-    private static bool TryReadFacePayload(dynamic sdk, int machine, string enroll, List<string> methodsTried, out string? payload)
+    private static bool TryReadFacePayload(object sdkObj, int machine, string enroll, List<string> methodsTried, out string? payload)
     {
+        dynamic sdk = sdkObj;
         payload = null;
 
         try

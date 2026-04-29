@@ -5,6 +5,7 @@ public sealed class SyncAgentConfiguration
     public DeviceSection Device { get; set; } = new();
     public SqlSection Sql { get; set; } = new();
     public PervasiveSyncSection PervasiveSync { get; set; } = new();
+    public AutoScheduleSection AutoSchedule { get; set; } = new();
 
     public sealed class DeviceSection
     {
@@ -42,5 +43,24 @@ public sealed class SyncAgentConfiguration
         public bool CloseOnlyWithFinalOutMode { get; set; } = true;
         public int MinimumOutGapMinutes { get; set; } = 1;
         public int MaxRowsPerRun { get; set; } = 200;
+    }
+
+    public sealed class AutoScheduleSection
+    {
+        public bool Enabled { get; set; } = true;
+        public int IntervalMinutes { get; set; } = 10;
+        public int PollSeconds { get; set; } = 30;
+        public List<TimeWindowSection> Windows { get; set; } =
+        [
+            new TimeWindowSection { Start = "05:00", End = "09:00" },
+            new TimeWindowSection { Start = "11:00", End = "03:30" },
+            new TimeWindowSection { Start = "16:00", End = "22:00" }
+        ];
+    }
+
+    public sealed class TimeWindowSection
+    {
+        public string Start { get; set; } = "00:00";
+        public string End { get; set; } = "23:59";
     }
 }

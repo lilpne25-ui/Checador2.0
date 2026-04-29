@@ -11,6 +11,7 @@ _build_temp/
 # Logs and temporary artifacts
 logs/
 *.log
+dist/
 
 # OS artifacts
 Thumbs.db
