@@ -47,6 +47,12 @@ public sealed class SqlDeviceSyncService
         }
     }
 
+    public bool IsCurrentProcessAuthorizedForDirectDevice()
+        => _directSource.IsCurrentProcessAuthorizedForDirectDevice();
+
+    public string GetDirectAccessBlockedMessage(string operation = "Connect")
+        => _directSource.BuildDirectAccessBlockedMessage(operation);
+
     public async Task<SqlSyncRunResult> DownloadAttendanceLogsAsync(CancellationToken cancellationToken = default)
     {
         await EnsureReadyAsync(cancellationToken);
@@ -95,6 +101,107 @@ public sealed class SqlDeviceSyncService
             kvp => (kvp.Value.PervasiveDept, kvp.Value.PervasiveShift));
 
         return await _pervasiveMirror.BuildPreviewAsync(mirrorEmployees, punches, mirrorMeta, cancellationToken);
+    }
+
+    public async Task<PervasiveNightShiftCleanupPreviewResult> PreviewPervasiveNightShiftHistoricalCleanupAsync(
+        DateTime fromDate,
+        DateTime toDate,
+        int? userId = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureReadyAsync(cancellationToken);
+
+        var from = fromDate.Date;
+        var to = toDate.Date;
+        if (from > to)
+        {
+            throw new InvalidOperationException("Rango inválido para preview de limpieza nocturna. La fecha inicial no puede ser mayor a la final.");
+        }
+
+        if (_pervasiveMirror is null || !_pervasiveMirror.IsEnabled)
+        {
+            return new PervasiveNightShiftCleanupPreviewResult(
+                false,
+                from,
+                to,
+                userId,
+                0,
+                0,
+                false,
+                0,
+                0,
+                "Preview no disponible: espejo Pervasive deshabilitado.");
+        }
+
+        const int maxRows = 120000;
+        await using var connection = new SqlConnection(_options.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        var (candidateRows, totalRows) = await GetSqlNightShiftPunchesForCleanupAsync(
+            connection,
+            from,
+            to,
+            userId,
+            maxRows,
+            cancellationToken);
+
+        var targetUsers = new List<int>();
+        if (userId.HasValue && userId.Value > 0)
+        {
+            targetUsers.Add(userId.Value);
+        }
+
+        if (candidateRows.Count == 0 && targetUsers.Count == 0)
+        {
+            return new PervasiveNightShiftCleanupPreviewResult(
+                true,
+                from,
+                to,
+                userId,
+                totalRows,
+                0,
+                false,
+                0,
+                0,
+                "Preview limpieza nocturna: sin marcas candidatas de horario 3 en el rango.");
+        }
+
+        var affectedUsers = candidateRows
+            .Select(x => x.UserId)
+            .Distinct()
+            .OrderBy(x => x)
+            .ToList();
+        foreach (var explicitUser in targetUsers)
+        {
+            if (!affectedUsers.Contains(explicitUser))
+            {
+                affectedUsers.Add(explicitUser);
+            }
+        }
+
+        affectedUsers = affectedUsers.OrderBy(x => x).ToList();
+        var estimatedSplitRows = affectedUsers.Count == 0
+            ? 0
+            : await _pervasiveMirror.CountNightShiftSplitRowsAsync(from, to, affectedUsers, cancellationToken);
+
+        var truncated = totalRows > maxRows;
+        var message =
+            $"Preview limpieza nocturna Pervasive ({from:dd/MM/yyyy} - {to:dd/MM/yyyy}). " +
+            $"Marcas candidatas={totalRows}, procesables={candidateRows.Count}, usuarios afectados={affectedUsers.Count}, " +
+            $"renglones partidos estimados={estimatedSplitRows}. " +
+            (truncated ? $"Aviso: se aplicará tope de {maxRows} marcas al ejecutar." : "Sin tope por volumen para este rango.");
+
+        return new PervasiveNightShiftCleanupPreviewResult(
+            true,
+            from,
+            to,
+            userId,
+            totalRows,
+            candidateRows.Count,
+            truncated,
+            affectedUsers.Count,
+            estimatedSplitRows,
+            message);
     }
 
     public async Task<PervasiveNightShiftCleanupResult> RunPervasiveNightShiftHistoricalCleanupAsync(
@@ -589,7 +696,22 @@ public sealed class SqlDeviceSyncService
     {
         await EnsureReadyAsync(cancellationToken);
 
-        var deviceEmployees = await _directSource.GetEmployeesAsync(cancellationToken);
+        IReadOnlyList<EmployeeInfo> deviceEmployees;
+        try
+        {
+            deviceEmployees = await _directSource.GetEmployeesAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // En modo SyncAgent-only o con reloj no disponible,
+            // se permite seguir operando con catálogo SQL sin bloquear la UI.
+            deviceEmployees = Array.Empty<EmployeeInfo>();
+        }
+
         await using var connection = new SqlConnection(_options.ConnectionString);
         await connection.OpenAsync(cancellationToken);
         var sqlEmployees = await GetSqlEmployeesAsync(connection, null, cancellationToken);
@@ -1005,7 +1127,8 @@ SELECT
     StartTime,
     EndTime,
     StandardHours,
-    IsActive
+    IsActive,
+    LateToleranceMinutes
 FROM dbo.WorkSchedules
 ORDER BY Code;";
 
@@ -1021,7 +1144,8 @@ ORDER BY Code;";
                 reader.GetTimeSpan(2),
                 reader.GetTimeSpan(3),
                 reader.GetDecimal(4),
-                reader.GetBoolean(5)));
+                reader.GetBoolean(5),
+                await reader.IsDBNullAsync(6, cancellationToken) ? 10 : reader.GetInt32(6)));
         }
 
         return result;
@@ -1034,6 +1158,7 @@ ORDER BY Code;";
         TimeSpan endTime,
         decimal standardHours,
         bool isActive,
+        int lateToleranceMinutes = 10,
         CancellationToken cancellationToken = default)
     {
         await EnsureReadyAsync(cancellationToken);
@@ -1053,6 +1178,11 @@ ORDER BY Code;";
             throw new InvalidOperationException("Las horas estandar deben ser mayores a cero.");
         }
 
+        if (lateToleranceMinutes < 0 || lateToleranceMinutes > 180)
+        {
+            throw new InvalidOperationException("La tolerancia de retardo debe estar entre 0 y 180 minutos.");
+        }
+
         await using var connection = new SqlConnection(_options.ConnectionString);
         await connection.OpenAsync(cancellationToken);
 
@@ -1065,7 +1195,8 @@ USING (
         @StartTime AS StartTime,
         @EndTime AS EndTime,
         @StandardHours AS StandardHours,
-        @IsActive AS IsActive
+        @IsActive AS IsActive,
+        @LateToleranceMinutes AS LateToleranceMinutes
 ) AS source
 ON target.Code = source.Code
 WHEN MATCHED THEN
@@ -1075,10 +1206,11 @@ WHEN MATCHED THEN
         EndTime = source.EndTime,
         StandardHours = source.StandardHours,
         IsActive = source.IsActive,
+        LateToleranceMinutes = source.LateToleranceMinutes,
         UpdatedAt = SYSUTCDATETIME()
 WHEN NOT MATCHED THEN
-    INSERT(Code, [Name], StartTime, EndTime, StandardHours, IsActive, UpdatedAt)
-    VALUES(source.Code, source.[Name], source.StartTime, source.EndTime, source.StandardHours, source.IsActive, SYSUTCDATETIME());";
+    INSERT(Code, [Name], StartTime, EndTime, StandardHours, IsActive, LateToleranceMinutes, UpdatedAt)
+    VALUES(source.Code, source.[Name], source.StartTime, source.EndTime, source.StandardHours, source.IsActive, source.LateToleranceMinutes, SYSUTCDATETIME());";
 
         await using var cmd = new SqlCommand(sql, connection);
         cmd.Parameters.AddWithValue("@Code", code);
@@ -1087,7 +1219,98 @@ WHEN NOT MATCHED THEN
         cmd.Parameters.AddWithValue("@EndTime", endTime);
         cmd.Parameters.AddWithValue("@StandardHours", standardHours);
         cmd.Parameters.AddWithValue("@IsActive", isActive);
+        cmd.Parameters.AddWithValue("@LateToleranceMinutes", lateToleranceMinutes);
         await cmd.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<LatenessIncidentItem>> GetLatenessIncidentsAsync(
+        DateTime fromDate,
+        DateTime toDate,
+        int? userId = null,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureReadyAsync(cancellationToken);
+
+        var from = fromDate.Date;
+        var to = toDate.Date;
+        if (from > to)
+        {
+            throw new InvalidOperationException("Rango invalido para retardos. La fecha inicial no puede ser mayor a la final.");
+        }
+
+        await using var connection = new SqlConnection(_options.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        const string sql = @"
+;WITH FirstPunch AS
+(
+    SELECT
+        p.UserId,
+        CAST(p.CheckTime AS date) AS WorkDate,
+        MIN(p.CheckTime) AS FirstCheckIn
+    FROM dbo.PunchLogs p
+    WHERE p.CheckTime >= @FromDate
+      AND p.CheckTime < DATEADD(DAY, 1, @ToDate)
+      AND (@UserId IS NULL OR p.UserId = @UserId)
+    GROUP BY p.UserId, CAST(p.CheckTime AS date)
+),
+Enriched AS
+(
+    SELECT
+        fp.UserId,
+        COALESCE(NULLIF(e.EmployeeName, ''), CONCAT('Empleado_', fp.UserId)) AS EmployeeName,
+        fp.WorkDate,
+        fp.FirstCheckIn,
+        e.WorkScheduleCode,
+        ws.[Name] AS WorkScheduleName,
+        COALESCE(ws.StartTime, CAST('07:00:00' AS time)) AS ScheduledStartTime,
+        COALESCE(ws.LateToleranceMinutes, 10) AS LateToleranceMinutes,
+        DATEADD(MINUTE, DATEDIFF(MINUTE, 0, COALESCE(ws.StartTime, CAST('07:00:00' AS time))), CAST(fp.WorkDate AS datetime2)) AS ScheduledStartDateTime
+    FROM FirstPunch fp
+    LEFT JOIN dbo.Employees e ON e.UserId = fp.UserId
+    LEFT JOIN dbo.WorkSchedules ws ON ws.Code = e.WorkScheduleCode
+)
+SELECT
+    UserId,
+    EmployeeName,
+    WorkDate,
+    FirstCheckIn,
+    WorkScheduleCode,
+    WorkScheduleName,
+    ScheduledStartTime,
+    LateToleranceMinutes,
+    DATEDIFF(MINUTE, ScheduledStartDateTime, FirstCheckIn) AS DelayMinutes
+FROM Enriched
+WHERE WorkScheduleCode IS NOT NULL
+  AND DATEDIFF(MINUTE, ScheduledStartDateTime, FirstCheckIn) > LateToleranceMinutes
+ORDER BY WorkDate ASC, UserId ASC;";
+
+        await using var cmd = new SqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@FromDate", from);
+        cmd.Parameters.AddWithValue("@ToDate", to);
+        var userParam = cmd.Parameters.Add("@UserId", System.Data.SqlDbType.Int);
+        userParam.Value = userId.HasValue && userId.Value > 0 ? userId.Value : DBNull.Value;
+
+        var rows = new List<LatenessIncidentItem>();
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var workDate = DateOnly.FromDateTime(reader.GetDateTime(2));
+            var scheduleCode = await reader.IsDBNullAsync(4, cancellationToken) ? (int?)null : reader.GetInt32(4);
+            var scheduleName = await reader.IsDBNullAsync(5, cancellationToken) ? null : reader.GetString(5);
+            rows.Add(new LatenessIncidentItem(
+                reader.GetInt32(0),
+                reader.GetString(1),
+                workDate,
+                reader.GetDateTime(3),
+                scheduleCode,
+                scheduleName,
+                reader.GetTimeSpan(6),
+                reader.GetInt32(7),
+                reader.GetInt32(8)));
+        }
+
+        return rows;
     }
 
     public async Task<IReadOnlyList<SqlPunchHistoryItem>> GetRecentHistoryAsync(int maxRows = 5, CancellationToken cancellationToken = default)
@@ -1574,8 +1797,14 @@ BEGIN
         EndTime TIME(0) NOT NULL,
         StandardHours DECIMAL(5,2) NOT NULL,
         IsActive BIT NOT NULL CONSTRAINT DF_WorkSchedules_IsActive DEFAULT (1),
+        LateToleranceMinutes INT NOT NULL CONSTRAINT DF_WorkSchedules_LateToleranceMinutes DEFAULT (10),
         UpdatedAt DATETIME2 NOT NULL CONSTRAINT DF_WorkSchedules_UpdatedAt DEFAULT SYSUTCDATETIME()
     );
+END;
+
+IF COL_LENGTH('dbo.WorkSchedules', 'LateToleranceMinutes') IS NULL
+BEGIN
+    ALTER TABLE dbo.WorkSchedules ADD LateToleranceMinutes INT NOT NULL CONSTRAINT DF_WorkSchedules_LateToleranceMinutes_Default DEFAULT (10);
 END;
 
 IF NOT EXISTS (SELECT 1 FROM dbo.WorkSchedules WHERE Code = 1)

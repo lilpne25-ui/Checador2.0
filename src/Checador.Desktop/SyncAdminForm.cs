@@ -86,6 +86,8 @@ public sealed partial class SyncAdminForm : Form
     private readonly DataGridView _dgvEmployees;
     private readonly TextBox _txtLog;
     private readonly OvertimeWorkOrderFormatGenerator _overtimeFormatGenerator = new();
+    private readonly bool _directDeviceOpsAllowed;
+    private readonly string _directDeviceBlockedMessage;
 
     private bool _busy;
     private bool _secretManualPunchUnlocked;
@@ -96,6 +98,20 @@ public sealed partial class SyncAdminForm : Form
         int autoSyncMinutes = 15)
     {
         _syncService = syncService;
+        _directDeviceOpsAllowed = _syncService.IsCurrentProcessAuthorizedForDirectDevice();
+        _directDeviceBlockedMessage = string.Empty;
+        if (!_directDeviceOpsAllowed)
+        {
+            try
+            {
+                _directDeviceBlockedMessage = _syncService.GetDirectAccessBlockedMessage("Connect");
+            }
+            catch (Exception ex)
+            {
+                _directDeviceBlockedMessage = $"Acceso directo bloqueado por política. {ex.Message}";
+            }
+        }
+
         ThemeManager.ThemeChanged += (s, e) =>
         {
             if (IsHandleCreated)
@@ -583,6 +599,7 @@ public sealed partial class SyncAdminForm : Form
         CacheBaseSizes();
         ApplyModernStyle();
         ApplyResponsiveScale();
+        ApplyDirectDevicePolicy();
 
         Shown += SyncAdminForm_Shown;
         FormClosed += SyncAdminForm_FormClosed;
@@ -655,6 +672,44 @@ public sealed partial class SyncAdminForm : Form
         layout.Controls.Add(valueControl, 0, 1);
         card.Controls.Add(layout);
         return card;
+    }
+
+    private void ApplyDirectDevicePolicy()
+    {
+        if (_directDeviceOpsAllowed)
+        {
+            return;
+        }
+
+        _btnDownloadLogs.Enabled = false;
+        _btnSyncDeviceTime.Enabled = false;
+        _btnPreviewPervasive.Enabled = false;
+        _btnDeleteEmployee.Enabled = false;
+        _chkAutoSync.Enabled = false;
+        _numAutoSyncMinutes.Enabled = false;
+    }
+
+    private bool EnsureDirectDeviceOperationAllowed(string operationTitle)
+    {
+        if (_directDeviceOpsAllowed)
+        {
+            return true;
+        }
+
+        var technicalDetail = string.IsNullOrWhiteSpace(_directDeviceBlockedMessage)
+            ? "Acceso directo a reloj bloqueado por política SyncAgent-only."
+            : _directDeviceBlockedMessage;
+
+        Log($"Operación bloqueada ({operationTitle}) por política SyncAgent-only. {technicalDetail}");
+        MessageBox.Show(
+            $"{operationTitle} está deshabilitada en Desktop por política SyncAgent-only.\n\n" +
+            "Ejecuta esta acción desde Checador.SyncAgent.\n\n" +
+            $"Detalle técnico: {technicalDetail}",
+            "Operación restringida",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
+
+        return false;
     }
 
     private void ApplyModernStyle()
@@ -786,7 +841,14 @@ public sealed partial class SyncAdminForm : Form
             await RefreshLiveMonitorAsync();
             await LoadEmployeesAsync();
             _liveMonitorTimer.Start();
-            Log("Módulo SQL listo. Puedes ejecutar 'Descargar Registros'.");
+            if (_directDeviceOpsAllowed)
+            {
+                Log("Módulo SQL listo. Puedes ejecutar 'Descargar Registros'.");
+            }
+            else
+            {
+                Log("Módulo SQL listo. Operaciones directas al reloj están bloqueadas en Desktop por política SyncAgent-only.");
+            }
         }, "Error inicializando módulo SQL");
     }
 
@@ -820,6 +882,11 @@ public sealed partial class SyncAdminForm : Form
 
     private async void btnDownloadLogs_Click(object? sender, EventArgs e)
     {
+        if (!EnsureDirectDeviceOperationAllowed("Descargar registros"))
+        {
+            return;
+        }
+
         await SafeUiRunAsync(async () =>
         {
             Log("Iniciando Download Attendance Logs...");
@@ -1537,6 +1604,11 @@ public sealed partial class SyncAdminForm : Form
 
     private async void btnDeleteEmployee_Click(object? sender, EventArgs e)
     {
+        if (!EnsureDirectDeviceOperationAllowed("Eliminar empleado"))
+        {
+            return;
+        }
+
         var empleadoSeleccionado = "empleado seleccionado";
         if (_dgvEmployees.SelectedRows.Count > 0)
         {
@@ -1730,6 +1802,11 @@ public sealed partial class SyncAdminForm : Form
 
     private async void btnPreviewPervasive_Click(object? sender, EventArgs e)
     {
+        if (!EnsureDirectDeviceOperationAllowed("Preview Pervasive"))
+        {
+            return;
+        }
+
         await SafeUiRunAsync(OpenPervasivePreviewDialogAsync, "Error cargando preview Pervasive");
     }
 
@@ -1837,6 +1914,11 @@ public sealed partial class SyncAdminForm : Form
 
     private async void btnSyncDeviceTime_Click(object? sender, EventArgs e)
     {
+        if (!EnsureDirectDeviceOperationAllowed("Sincronizar hora del reloj"))
+        {
+            return;
+        }
+
         await SafeUiRunAsync(async () =>
         {
             var result = await _syncService.SyncDeviceTimeAsync();
@@ -1849,6 +1931,13 @@ public sealed partial class SyncAdminForm : Form
 
     private void chkAutoSync_CheckedChanged(object? sender, EventArgs e)
     {
+        if (_chkAutoSync.Checked && !_directDeviceOpsAllowed)
+        {
+            _chkAutoSync.Checked = false;
+            EnsureDirectDeviceOperationAllowed("Auto-sync");
+            return;
+        }
+
         if (_chkAutoSync.Checked)
         {
             var minutes = (int)_numAutoSyncMinutes.Value;
@@ -1865,6 +1954,13 @@ public sealed partial class SyncAdminForm : Form
 
     private async void autoSyncTimer_Tick(object? sender, EventArgs e)
     {
+        if (!_directDeviceOpsAllowed)
+        {
+            _autoSyncTimer.Stop();
+            Log("Auto-sync detenido: acceso directo al reloj bloqueado por política SyncAgent-only.");
+            return;
+        }
+
         await SafeUiRunAsync(async () =>
         {
             var result = await _syncService.DownloadAttendanceLogsAsync();
@@ -2257,15 +2353,15 @@ public sealed partial class SyncAdminForm : Form
         _busy = busy;
         UseWaitCursor = busy;
 
-        _btnDownloadLogs.Enabled = !busy;
+        _btnDownloadLogs.Enabled = !busy && _directDeviceOpsAllowed;
         _btnRefreshEmployees.Enabled = !busy;
         _btnRenameEmployee.Enabled = !busy;
         _btnOvertimeFormat.Enabled = !busy;
         _btnAutoSyncGui.Enabled = !busy;
         _btnWorkSchedules.Enabled = !busy;
-        _btnDeleteEmployee.Enabled = !busy;
-        _btnSyncDeviceTime.Enabled = !busy;
-        _btnPreviewPervasive.Enabled = !busy;
+        _btnDeleteEmployee.Enabled = !busy && _directDeviceOpsAllowed;
+        _btnSyncDeviceTime.Enabled = !busy && _directDeviceOpsAllowed;
+        _btnPreviewPervasive.Enabled = !busy && _directDeviceOpsAllowed;
         _btnNightShiftCleanup.Enabled = !busy;
         _btnChangeEmployeeRange.Enabled = !busy;
         _btnRefreshStats.Enabled = !busy;

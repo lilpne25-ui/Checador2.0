@@ -14,4 +14,5 @@ public sealed class ReportRequest
     public int? WorkScheduleCode { get; init; }
     public string? WorkScheduleDisplay { get; init; }
     public string? WorkShiftType { get; init; }
+    public bool UseSimulatedDataWhenEmpty { get; init; }
 }

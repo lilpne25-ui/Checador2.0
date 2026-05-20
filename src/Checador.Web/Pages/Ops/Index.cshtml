@@ -1,0 +1,292 @@
+﻿@page
+@model Checador.Web.Pages.Ops.IndexModel
+@{
+    ViewData["Title"] = "Operacion";
+
+    var syncConnected = string.Equals(Model.SyncStatus?.LastStatus, "ok", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(Model.SyncStatus?.LastStatus, "success", StringComparison.OrdinalIgnoreCase);
+    var liveConnected = Model.LiveStatus?.DeviceConnected ?? false;
+    var autoSyncEnabled = Model.AutoSyncStatus?.Enabled ?? false;
+}
+
+<div class="page-shell">
+    <section class="page-hero">
+        <div>
+            <p class="hero-kicker">Ops / Control</p>
+            <h1 class="hero-title">Operacion de sincronizacion y estado vivo</h1>
+            <p class="hero-description">Monitorea SQL, reloj y autosync en una vista unificada. Refresco automatico cada 15 segundos sin cerrar sesion.</p>
+        </div>
+        <div class="hero-actions">
+            <form method="post" asp-page-handler="Refresh" class="d-inline" id="autoRefreshForm">
+                <input type="hidden" asp-for="Top" />
+                <input type="hidden" asp-for="IntervalMinutes" />
+                <button type="submit" class="btn btn-primary">Probar conexion / actualizar</button>
+            </form>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert alert-warning" role="alert" aria-live="assertive">@Model.ErrorMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Model.OperationMessage))
+    {
+        <div class="alert @(Model.OperationSuccess ? "alert-success" : "alert-danger")" role="alert" aria-live="@(Model.OperationSuccess ? "polite" : "assertive")">@Model.OperationMessage</div>
+    }
+
+    <section class="metric-grid">
+        <article class="metric-card">
+            <span class="metric-icon">SQL</span>
+            <div>
+                <p class="metric-label">Estado sync SQL</p>
+                <p class="metric-value">@(Model.SyncStatus?.TotalPunches ?? 0)</p>
+                <p class="metric-note">
+                    <span class="status-pill @(syncConnected ? "status-good" : "status-warn")">@(syncConnected ? "Operando" : "Revisar")</span>
+                </p>
+            </div>
+        </article>
+        <article class="metric-card">
+            <span class="metric-icon">DEV</span>
+            <div>
+                <p class="metric-label">Conexion reloj</p>
+                <p class="metric-value">@(liveConnected ? "Online" : "Offline")</p>
+                <p class="metric-note">
+                    <span class="status-pill @(liveConnected ? "status-good" : "status-bad")">@(liveConnected ? "Conectado" : "Desconectado")</span>
+                </p>
+            </div>
+        </article>
+        <article class="metric-card">
+            <span class="metric-icon">AUTO</span>
+            <div>
+                <p class="metric-label">Autosync</p>
+                <p class="metric-value">@(autoSyncEnabled ? "Activo" : "Detenido")</p>
+                <p class="metric-note">Intervalo actual: @(Model.AutoSyncStatus?.IntervalMinutes ?? Model.IntervalMinutes) min</p>
+            </div>
+        </article>
+        <article class="metric-card">
+            <span class="metric-icon">TOP</span>
+            <div>
+                <p class="metric-label">Historial visible</p>
+                <p class="metric-value">@Model.Top</p>
+                <p class="metric-note">Registros recientes en pantalla.</p>
+            </div>
+        </article>
+    </section>
+
+    <section class="row g-3">
+        <div class="col-lg-4">
+            <article class="section-card h-100">
+                <header class="section-head">
+                    <div>
+                        <h2 class="section-title">Estado de sincronizacion SQL</h2>
+                        <p class="section-subtitle">Resumen de carga y estatus de sync.</p>
+                    </div>
+                </header>
+                <div class="section-body">
+                    @if (Model.SyncStatus is null)
+                    {
+                        <p class="text-muted mb-0">Sin datos.</p>
+                    }
+                    else
+                    {
+                        <dl class="kv-grid">
+                            <dt>Estatus</dt><dd>@Model.SyncStatus.LastStatus</dd>
+                            <dt>Empleados SQL</dt><dd>@Model.SyncStatus.TotalEmployees</dd>
+                            <dt>Marcas SQL</dt><dd>@Model.SyncStatus.TotalPunches</dd>
+                            <dt>Ultimo sync</dt><dd>@(Model.SyncStatus.LastSync?.ToString("dd/MM/yyyy HH:mm:ss") ?? "N/A")</dd>
+                            <dt>Ultima marca</dt><dd>@(Model.SyncStatus.LastPunch?.ToString("dd/MM/yyyy HH:mm:ss") ?? "N/A")</dd>
+                        </dl>
+                        <hr />
+                        <div class="small text-muted">@Model.SyncStatus.LastMessage</div>
+                    }
+                </div>
+            </article>
+        </div>
+
+        <div class="col-lg-4">
+            <article class="section-card h-100">
+                <header class="section-head">
+                    <div>
+                        <h2 class="section-title">Estado en vivo</h2>
+                        <p class="section-subtitle">Conexion y telemetria del reloj.</p>
+                    </div>
+                </header>
+                <div class="section-body">
+                    @if (Model.LiveStatus is null)
+                    {
+                        <p class="text-muted mb-0">Sin datos.</p>
+                    }
+                    else
+                    {
+                        <dl class="kv-grid">
+                            <dt>Conexion reloj</dt>
+                            <dd>
+                                <span class="status-pill @(Model.LiveStatus.DeviceConnected ? "status-good" : "status-bad")">
+                                    @(Model.LiveStatus.DeviceConnected ? "Conectado" : "Desconectado")
+                                </span>
+                            </dd>
+                            <dt>Hora reloj</dt><dd>@(Model.LiveStatus.DeviceTime?.ToString("dd/MM/yyyy HH:mm:ss") ?? "N/A")</dd>
+                            <dt>Usuarios reloj</dt><dd>@(Model.LiveStatus.DeviceUsers?.ToString() ?? "N/A")</dd>
+                            <dt>Sync estado</dt><dd>@Model.LiveStatus.LastSyncStatus</dd>
+                        </dl>
+                        <hr />
+                        <div class="small text-muted">@Model.LiveStatus.DeviceMessage</div>
+                    }
+                </div>
+            </article>
+        </div>
+
+        <div class="col-lg-4">
+            <article class="section-card h-100">
+                <header class="section-head">
+                    <div>
+                        <h2 class="section-title">AutoSync</h2>
+                        <p class="section-subtitle">Ejecucion periodica y contadores.</p>
+                    </div>
+                </header>
+                <div class="section-body">
+                    @if (Model.AutoSyncStatus is null)
+                    {
+                        <p class="text-muted mb-0">Sin datos.</p>
+                    }
+                    else
+                    {
+                        <dl class="kv-grid">
+                            <dt>Estado</dt>
+                            <dd>
+                                <span class="status-pill @(Model.AutoSyncStatus.Enabled ? "status-good" : "status-warn")">
+                                    @(Model.AutoSyncStatus.Enabled ? "Activo" : "Detenido")
+                                </span>
+                            </dd>
+                            <dt>En ejecucion</dt><dd>@(Model.AutoSyncStatus.Busy ? "Si" : "No")</dd>
+                            <dt>Intervalo</dt><dd>@Model.AutoSyncStatus.IntervalMinutes min</dd>
+                            <dt>Ultimo exito</dt><dd>@(Model.AutoSyncStatus.LastSuccessAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") ?? "N/A")</dd>
+                            <dt>Ultimo error</dt><dd>@(Model.AutoSyncStatus.LastFailureAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") ?? "N/A")</dd>
+                            <dt>Contadores</dt><dd>OK: @Model.AutoSyncStatus.SuccessCount / Error: @Model.AutoSyncStatus.FailureCount</dd>
+                        </dl>
+                        <hr />
+                        <div class="small text-muted">@Model.AutoSyncStatus.LastMessage</div>
+                    }
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <section class="section-card">
+        <header class="section-head">
+            <div>
+                <h2 class="section-title">Acciones de operacion</h2>
+                <p class="section-subtitle">Ejecucion inmediata contra API LAN.</p>
+            </div>
+            <span class="status-pill status-info">Controlado</span>
+        </header>
+        <div class="section-body">
+            <div class="ops-actions">
+                <form method="post" asp-page-handler="RunSync" class="d-inline">
+                    <input type="hidden" asp-for="Top" />
+                    <input type="hidden" asp-for="IntervalMinutes" />
+                    <button type="submit" class="btn btn-primary">Ejecutar sync ahora</button>
+                </form>
+                <form method="post" asp-page-handler="SyncDeviceTime" class="d-inline">
+                    <input type="hidden" asp-for="Top" />
+                    <input type="hidden" asp-for="IntervalMinutes" />
+                    <button type="submit" class="btn btn-outline-secondary">Sincronizar hora del reloj</button>
+                </form>
+                <form method="post" asp-page-handler="AutoSyncStart" class="d-inline">
+                    <input type="hidden" asp-for="Top" />
+                    <input type="hidden" asp-for="IntervalMinutes" />
+                    <button type="submit" class="btn btn-outline-success">Iniciar AutoSync</button>
+                </form>
+                <form method="post" asp-page-handler="AutoSyncStop" class="d-inline">
+                    <input type="hidden" asp-for="Top" />
+                    <input type="hidden" asp-for="IntervalMinutes" />
+                    <button type="submit" class="btn btn-outline-danger">Detener AutoSync</button>
+                </form>
+            </div>
+
+            <form method="post" asp-page-handler="AutoSyncInterval" class="row g-2 align-items-end mt-3">
+                <input type="hidden" asp-for="Top" />
+                <div class="col-sm-4 col-md-3">
+                    <label asp-for="IntervalMinutes" class="form-label"></label>
+                    <input asp-for="IntervalMinutes" class="form-control" min="1" max="240" />
+                </div>
+                <div class="col-sm-4 col-md-3">
+                    <button type="submit" class="btn btn-outline-primary w-100">Guardar intervalo</button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <section class="table-shell">
+        <div class="table-toolbar">
+            <div class="table-toolbar-meta">
+                <h2 class="table-toolbar-title">Historial reciente</h2>
+                <p class="table-toolbar-subtitle">Ultimas marcas sincronizadas en SQL.</p>
+            </div>
+            <form method="get" class="table-filter-form">
+                <div>
+                    <label asp-for="Top" class="form-label"></label>
+                    <input asp-for="Top" class="form-control" min="1" max="200" />
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-outline-primary toolbar-primary-mobile">Aplicar</button>
+                </div>
+            </form>
+        </div>
+
+        @if (Model.RecentHistory.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">OPS</div>
+                <p class="empty-state-title">Sin registros</p>
+                <p class="empty-state-copy">Aun no hay marcas recientes para mostrar.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-striped table-grid mb-0">
+                    <thead>
+                        <tr>
+                            <th>USERID</th>
+                            <th>Empleado</th>
+                            <th>Fecha/Hora</th>
+                            <th>Fuente</th>
+                            <th>Modo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in Model.RecentHistory)
+                    {
+                        <tr>
+                            <td>@row.UserId</td>
+                            <td>@row.EmployeeName</td>
+                            <td>@row.CheckTime.ToString("dd/MM/yyyy HH:mm:ss")</td>
+                            <td><span class="table-badge table-badge-info">@row.Source</span></td>
+                            <td><span class="table-badge table-badge-muted">@(row.InOutMode?.ToString() ?? "-")</span></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            const form = document.getElementById('autoRefreshForm');
+            if (!form) return;
+
+            setInterval(() => {
+                if (document.hidden) return;
+                const active = document.activeElement;
+                if (active && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)) return;
+                form.requestSubmit();
+            }, 15000);
+        })();
+    </script>
+}
+

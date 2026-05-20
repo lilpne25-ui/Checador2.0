@@ -1,0 +1,250 @@
+﻿@page
+@using System.Linq
+@model Checador.Web.Pages.Admin.PervasiveModel
+@{
+    ViewData["Title"] = "Pervasive";
+
+    var rows = Model.PreviewResult?.Items ?? new List<Checador.Web.Models.ApiAdminPervasivePreviewItem>();
+    var insertCount = rows.Count(x => string.Equals(x.Action, "INSERT", StringComparison.OrdinalIgnoreCase));
+    var updateCount = rows.Count(x => string.Equals(x.Action, "UPDATE", StringComparison.OrdinalIgnoreCase));
+    var correctiveCount = rows.Count(x => string.Equals(x.Action, "UPDATE_CORRECTIVE", StringComparison.OrdinalIgnoreCase));
+    var skipCount = rows.Count(x => string.Equals(x.Action, "SKIP", StringComparison.OrdinalIgnoreCase));
+    var guardSkipCount = rows.Count(x => string.Equals(x.Action, "SKIP_GUARD", StringComparison.OrdinalIgnoreCase));
+    var abortCount = rows.Count(x => string.Equals(x.Action, "ABORT_GUARD", StringComparison.OrdinalIgnoreCase));
+}
+
+<div class="page-shell">
+    <section class="page-hero">
+        <div>
+            <p class="hero-kicker">Admin / Pervasive</p>
+            <h1 class="hero-title">Control de mirror Pervasive</h1>
+            <p class="hero-description">Consulta de preview de payload y limpieza nocturna con confirmaciones controladas.</p>
+        </div>
+        <div class="hero-actions">
+            <a asp-page="/Admin/Employees" class="btn btn-outline-secondary">Volver a empleados</a>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert alert-warning" role="alert" aria-live="assertive">@Model.ErrorMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Model.OperationMessage))
+    {
+        <div class="alert @(Model.OperationSuccess ? "alert-success" : "alert-danger")" role="alert" aria-live="@(Model.OperationSuccess ? "polite" : "assertive")">@Model.OperationMessage</div>
+    }
+
+    <form method="post" asp-page-handler="LoadPreview" class="panel-form">
+        <header class="panel-header">
+            <h2 class="panel-title">Preview de payload Pervasive</h2>
+            <p class="panel-subtitle">Carga una muestra para revisar acciones de sync antes de ejecutar procesos.</p>
+        </header>
+        <div class="panel-body row g-3 align-items-end">
+            <div class="col-md-3">
+                <label asp-for="PreviewInput.Top" class="form-label"></label>
+                <input asp-for="PreviewInput.Top" class="form-control" type="number" min="1" max="5000" />
+            </div>
+            <div class="col-md-9 d-flex gap-2 flex-wrap">
+                <button type="submit" class="btn btn-primary">Cargar preview</button>
+                <a asp-page="/Admin/Pervasive" class="btn btn-outline-secondary">Limpiar</a>
+            </div>
+        </div>
+    </form>
+
+    @if (Model.PreviewResult is not null)
+    {
+        <section class="metric-grid">
+            <article class="metric-card"><span class="metric-icon">TOT</span><div><p class="metric-label">Total disponible</p><p class="metric-value">@Model.PreviewResult.TotalRows</p></div></article>
+            <article class="metric-card"><span class="metric-icon">SHOW</span><div><p class="metric-label">Mostradas</p><p class="metric-value">@Model.PreviewResult.ReturnedRows</p></div></article>
+            <article class="metric-card"><span class="metric-icon">INS</span><div><p class="metric-label">INSERT</p><p class="metric-value">@insertCount</p></div></article>
+            <article class="metric-card"><span class="metric-icon">UPD</span><div><p class="metric-label">UPDATE</p><p class="metric-value">@updateCount</p></div></article>
+        </section>
+
+        <section class="section-card">
+            <header class="section-head">
+                <div>
+                    <h2 class="section-title">Resumen de acciones</h2>
+                    <p class="section-subtitle">Clasificacion de movimientos detectados.</p>
+                </div>
+                <div class="table-toolbar-actions">
+                    <span class="table-badge table-badge-info">UPDATE_CORRECTIVE: @correctiveCount</span>
+                    <span class="table-badge table-badge-muted">SKIP: @skipCount</span>
+                    <span class="table-badge table-badge-muted">SKIP_GUARD: @guardSkipCount</span>
+                    <span class="table-badge table-badge-warn">ABORT_GUARD: @abortCount</span>
+                </div>
+            </header>
+        </section>
+
+        <section class="table-shell">
+            <div class="table-toolbar">
+                <div class="table-toolbar-meta">
+                    <h3 class="table-toolbar-title">Detalle preview</h3>
+                    <p class="table-toolbar-subtitle">Rows en el mismo orden entregado por backend.</p>
+                </div>
+                <div class="table-toolbar-actions">
+                    <span class="table-badge table-badge-info">@rows.Count filas</span>
+                </div>
+            </div>
+
+            @if (rows.Count > 0)
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped align-middle table-grid mb-0">
+                        <thead>
+                            <tr>
+                                <th>USERID</th>
+                                <th>Accion</th>
+                                <th>EMPLOYEE</th>
+                                <th>Nombre</th>
+                                <th>CHARGE_DATE</th>
+                                <th>DATE_IN</th>
+                                <th>TIME_IN</th>
+                                <th>DATE_OUT</th>
+                                <th>TIME_OUT</th>
+                                <th>DEPT</th>
+                                <th>SHIFT</th>
+                                <th>Notas</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var item in rows)
+                        {
+                            var actionClass = string.Equals(item.Action, "INSERT", StringComparison.OrdinalIgnoreCase)
+                                ? "table-badge-success"
+                                : string.Equals(item.Action, "UPDATE", StringComparison.OrdinalIgnoreCase) || string.Equals(item.Action, "UPDATE_CORRECTIVE", StringComparison.OrdinalIgnoreCase)
+                                    ? "table-badge-info"
+                                    : string.Equals(item.Action, "ABORT_GUARD", StringComparison.OrdinalIgnoreCase)
+                                        ? "table-badge-warn"
+                                        : "table-badge-muted";
+
+                            <tr>
+                                <td>@item.UserId</td>
+                                <td><span class="table-badge @actionClass">@item.Action</span></td>
+                                <td>@item.Employee</td>
+                                <td>@item.EmployeeName</td>
+                                <td>@item.ChargeDate.ToString("yyyy-MM-dd")</td>
+                                <td>@item.DateIn</td>
+                                <td>@item.TimeIn</td>
+                                <td>@item.DateOut</td>
+                                <td>@item.TimeOut</td>
+                                <td>@item.Dept</td>
+                                <td>@item.Shift</td>
+                                <td class="small">@item.Notes</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <div class="empty-state-icon">PVS</div>
+                    <p class="empty-state-title">Sin filas de preview</p>
+                    <p class="empty-state-copy">La muestra actual no devolvio registros para mostrar.</p>
+                </div>
+            }
+        </section>
+    }
+
+    <form method="post" asp-page-handler="PreviewCleanup" class="panel-form">
+        <header class="panel-header">
+            <h2 class="panel-title">Preview limpieza nocturna</h2>
+            <p class="panel-subtitle">Evalua impacto por rango y USERID antes de ejecutar.</p>
+        </header>
+        <div class="panel-body row g-3 align-items-end">
+            <div class="col-md-3">
+                <label asp-for="CleanupInput.FromDate" class="form-label"></label>
+                <input asp-for="CleanupInput.FromDate" class="form-control" type="date" />
+            </div>
+            <div class="col-md-3">
+                <label asp-for="CleanupInput.ToDate" class="form-label"></label>
+                <input asp-for="CleanupInput.ToDate" class="form-control" type="date" />
+            </div>
+            <div class="col-md-3">
+                <label asp-for="CleanupInput.UserId" class="form-label"></label>
+                <input asp-for="CleanupInput.UserId" class="form-control" type="number" min="1" placeholder="Vacio = todos horario 3" />
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-outline-primary w-100">Ejecutar preview</button>
+            </div>
+        </div>
+    </form>
+
+    @if (Model.CleanupPreviewResult is not null)
+    {
+        <section class="section-card">
+            <header class="section-head">
+                <h2 class="section-title">Resultado preview limpieza</h2>
+            </header>
+            <div class="section-body">
+                <ul class="summary-list">
+                    <li><strong>Habilitado:</strong> @(Model.CleanupPreviewResult.Enabled ? "Si" : "No")</li>
+                    <li><strong>Rango:</strong> @Model.CleanupPreviewResult.FromDate.ToString("yyyy-MM-dd") al @Model.CleanupPreviewResult.ToDate.ToString("yyyy-MM-dd")</li>
+                    <li><strong>UserId:</strong> @(Model.CleanupPreviewResult.UserId?.ToString() ?? "(todos horario 3)")</li>
+                    <li><strong>Marcas candidatas:</strong> @Model.CleanupPreviewResult.CandidatePunches</li>
+                    <li><strong>Marcas procesables:</strong> @Model.CleanupPreviewResult.ProcessablePunches</li>
+                    <li><strong>Usuarios afectados:</strong> @Model.CleanupPreviewResult.AffectedUsers</li>
+                    <li><strong>Renglones partidos estimados:</strong> @Model.CleanupPreviewResult.EstimatedSplitRows</li>
+                    <li><strong>Tope aplicado:</strong> @(Model.CleanupPreviewResult.TruncatedByTop ? "Si" : "No")</li>
+                </ul>
+                <div class="small text-muted">@Model.CleanupPreviewResult.Message</div>
+            </div>
+        </section>
+
+        <form method="post" asp-page-handler="RunCleanup" class="panel-form danger-card">
+            <header class="panel-header">
+                <h2 class="panel-title">Ejecutar limpieza nocturna</h2>
+                <p class="panel-subtitle">Requiere confirmacion explicita para ejecutar cambios.</p>
+            </header>
+            <div class="panel-body row g-3">
+                <input type="hidden" asp-for="CleanupInput.FromDate" />
+                <input type="hidden" asp-for="CleanupInput.ToDate" />
+                <input type="hidden" asp-for="CleanupInput.UserId" />
+
+                <div class="col-md-8">
+                    <label asp-for="ConfirmText" class="form-label"></label>
+                    <input asp-for="ConfirmText" class="form-control" placeholder="EJECUTAR LIMPIEZA" />
+                </div>
+
+                <div class="col-md-4 d-flex align-items-end">
+                    <div class="form-check">
+                        <input asp-for="ConfirmApply" class="form-check-input" />
+                        <label asp-for="ConfirmApply" class="form-check-label"></label>
+                    </div>
+                </div>
+            </div>
+            <div class="panel-footer">
+                <button type="submit" class="btn btn-danger">Ejecutar limpieza</button>
+            </div>
+        </form>
+    }
+
+    @if (Model.CleanupRunResult is not null)
+    {
+        <section class="section-card">
+            <header class="section-head">
+                <h2 class="section-title">Resultado ejecucion limpieza</h2>
+            </header>
+            <div class="section-body">
+                <ul class="summary-list">
+                    <li><strong>Rango:</strong> @Model.CleanupRunResult.FromDate.ToString("yyyy-MM-dd") al @Model.CleanupRunResult.ToDate.ToString("yyyy-MM-dd")</li>
+                    <li><strong>UserId:</strong> @(Model.CleanupRunResult.UserId?.ToString() ?? "(todos horario 3)")</li>
+                    <li><strong>Marcas candidatas:</strong> @Model.CleanupRunResult.CandidatePunches</li>
+                    <li><strong>Marcas procesadas:</strong> @Model.CleanupRunResult.ProcessedPunches</li>
+                    <li><strong>Usuarios afectados:</strong> @Model.CleanupRunResult.AffectedUsers</li>
+                    <li><strong>Renglones eliminados:</strong> @Model.CleanupRunResult.DeletedSplitRows</li>
+                    <li><strong>Tope aplicado:</strong> @(Model.CleanupRunResult.TruncatedByTop ? "Si" : "No")</li>
+                </ul>
+                <div class="small mt-2"><strong>Detalle espejo:</strong> @Model.CleanupRunResult.MirrorMessage</div>
+                <div class="small text-muted">@Model.CleanupRunResult.Message</div>
+            </div>
+        </section>
+    }
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
+

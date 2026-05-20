@@ -1,0 +1,192 @@
+﻿@page
+@model Checador.Web.Pages.Admin.ReassignModel
+@{
+    ViewData["Title"] = "Cambio por rango";
+}
+
+<div class="page-shell">
+    <section class="page-hero">
+        <div>
+            <p class="hero-kicker">Admin / Reasignacion</p>
+            <h1 class="hero-title">Cambio de numero por rango</h1>
+            <p class="hero-description">Herramienta controlada para reasignar USERID en un periodo definido.</p>
+        </div>
+        <div class="hero-actions">
+            <a asp-page="/Admin/Employees" class="btn btn-outline-secondary">Volver a empleados</a>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert alert-warning" role="alert" aria-live="assertive">@Model.ErrorMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Model.OperationMessage))
+    {
+        <div class="alert @(Model.OperationSuccess ? "alert-success" : "alert-danger")" role="alert" aria-live="@(Model.OperationSuccess ? "polite" : "assertive")">@Model.OperationMessage</div>
+    }
+
+    <form method="post" asp-page-handler="Preview" class="panel-form">
+        <header class="panel-header">
+            <h2 class="panel-title">Parametros del cambio</h2>
+            <p class="panel-subtitle">Completa los datos para validar el impacto antes de aplicar.</p>
+        </header>
+        <div class="panel-body row g-3">
+            <div class="col-md-2">
+                <label asp-for="Input.OldUserId" class="form-label"></label>
+                <input asp-for="Input.OldUserId" class="form-control" type="number" min="1" />
+                <span asp-validation-for="Input.OldUserId" class="text-danger small validation-message"></span>
+            </div>
+
+            <div class="col-md-2">
+                <label asp-for="Input.NewUserId" class="form-label"></label>
+                <input asp-for="Input.NewUserId" class="form-control" type="number" min="1" />
+                <span asp-validation-for="Input.NewUserId" class="text-danger small validation-message"></span>
+            </div>
+
+            <div class="col-md-2">
+                <label asp-for="Input.FromDate" class="form-label"></label>
+                <input asp-for="Input.FromDate" class="form-control" type="date" />
+                <span asp-validation-for="Input.FromDate" class="text-danger small validation-message"></span>
+            </div>
+
+            <div class="col-md-2">
+                <label asp-for="Input.ToDate" class="form-label"></label>
+                <input asp-for="Input.ToDate" class="form-control" type="date" />
+                <span asp-validation-for="Input.ToDate" class="text-danger small validation-message"></span>
+            </div>
+
+            <div class="col-md-4">
+                <label asp-for="Input.NewName" class="form-label"></label>
+                <input asp-for="Input.NewName" class="form-control" />
+                <span asp-validation-for="Input.NewName" class="text-danger small validation-message"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label asp-for="Input.NewDepartment" class="form-label"></label>
+                <input asp-for="Input.NewDepartment" class="form-control" />
+                <span asp-validation-for="Input.NewDepartment" class="text-danger small validation-message"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label asp-for="Input.NewPervasiveDept" class="form-label"></label>
+                <input asp-for="Input.NewPervasiveDept" class="form-control" />
+                <span asp-validation-for="Input.NewPervasiveDept" class="text-danger small validation-message"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label asp-for="Input.NewPervasiveShift" class="form-label"></label>
+                <input asp-for="Input.NewPervasiveShift" class="form-control" />
+                <span asp-validation-for="Input.NewPervasiveShift" class="text-danger small validation-message"></span>
+            </div>
+
+            <div class="col-md-3 d-flex align-items-end">
+                <div>
+                    <div class="form-check">
+                        <input asp-for="Input.AllowSkipConflicts" class="form-check-input" />
+                        <label asp-for="Input.AllowSkipConflicts" class="form-check-label"></label>
+                    </div>
+                    <div class="form-check">
+                        <input asp-for="Input.IncludePervasive" class="form-check-input" />
+                        <label asp-for="Input.IncludePervasive" class="form-check-label"></label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="panel-footer">
+            <button type="submit" class="btn btn-primary">Ejecutar preview</button>
+            <a asp-page="/Admin/Reassign" class="btn btn-outline-secondary">Limpiar</a>
+        </div>
+    </form>
+
+    @if (Model.PreviewResult is not null)
+    {
+        <section class="section-card">
+            <header class="section-head">
+                <div>
+                    <h2 class="section-title">Resultado del preview</h2>
+                    <p class="section-subtitle">Validacion previa de SQL y Pervasive.</p>
+                </div>
+            </header>
+            <div class="section-body row g-3">
+                <div class="col-md-6">
+                    <ul class="summary-list">
+                        <li><strong>SQL filas origen:</strong> @Model.PreviewResult.SqlOldRows</li>
+                        <li><strong>SQL filas destino:</strong> @Model.PreviewResult.SqlTargetRows</li>
+                        <li><strong>SQL conflictos:</strong> @Model.PreviewResult.SqlConflictRows</li>
+                        <li><strong>SQL dias:</strong> @Model.PreviewResult.SqlDistinctDays</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <ul class="summary-list">
+                        <li><strong>Pervasive habilitado:</strong> @(Model.PreviewResult.PervasiveEnabled ? "Si" : "No")</li>
+                        <li><strong>Pervasive filas origen:</strong> @Model.PreviewResult.PervasiveOldRows</li>
+                        <li><strong>Pervasive filas destino:</strong> @Model.PreviewResult.PervasiveTargetRows</li>
+                        <li><strong>Pervasive conflictos:</strong> @Model.PreviewResult.PervasiveConflictRows</li>
+                    </ul>
+                </div>
+                <div class="col-12">
+                    <div class="small text-muted">@Model.PreviewResult.Message</div>
+                </div>
+            </div>
+        </section>
+
+        <form method="post" asp-page-handler="Apply" class="panel-form danger-card">
+            <header class="panel-header">
+                <h2 class="panel-title">Aplicar cambio por rango</h2>
+                <p class="panel-subtitle">Se ejecutara solo con confirmacion explicita.</p>
+            </header>
+            <div class="panel-body row g-3">
+                <input type="hidden" asp-for="Input.OldUserId" />
+                <input type="hidden" asp-for="Input.NewUserId" />
+                <input type="hidden" asp-for="Input.FromDate" />
+                <input type="hidden" asp-for="Input.ToDate" />
+                <input type="hidden" asp-for="Input.NewName" />
+                <input type="hidden" asp-for="Input.NewDepartment" />
+                <input type="hidden" asp-for="Input.NewPervasiveDept" />
+                <input type="hidden" asp-for="Input.NewPervasiveShift" />
+                <input type="hidden" asp-for="Input.AllowSkipConflicts" />
+                <input type="hidden" asp-for="Input.IncludePervasive" />
+
+                <div class="col-md-8">
+                    <label asp-for="ConfirmText" class="form-label"></label>
+                    <input asp-for="ConfirmText" class="form-control" placeholder="APLICAR CAMBIO" />
+                    <span asp-validation-for="ConfirmText" class="text-danger small validation-message"></span>
+                </div>
+
+                <div class="col-md-4 d-flex align-items-end">
+                    <div class="form-check">
+                        <input asp-for="ConfirmApply" class="form-check-input" />
+                        <label asp-for="ConfirmApply" class="form-check-label"></label>
+                    </div>
+                </div>
+            </div>
+            <div class="panel-footer">
+                <button type="submit" class="btn btn-danger">Aplicar cambio</button>
+            </div>
+        </form>
+    }
+
+    @if (Model.ApplyResult is not null)
+    {
+        <section class="section-card">
+            <header class="section-head">
+                <h2 class="section-title">Resultado de aplicacion</h2>
+            </header>
+            <div class="section-body">
+                <ul class="summary-list">
+                    <li><strong>SQL actualizadas:</strong> @Model.ApplyResult.SqlUpdatedRows</li>
+                    <li><strong>SQL conflictos omitidos:</strong> @Model.ApplyResult.SqlSkippedConflicts</li>
+                    <li><strong>Pervasive actualizadas:</strong> @Model.ApplyResult.PervasiveUpdatedRows</li>
+                    <li><strong>Pervasive conflictos omitidos:</strong> @Model.ApplyResult.PervasiveSkippedConflicts</li>
+                    <li><strong>Detalle:</strong> @Model.ApplyResult.Message</li>
+                </ul>
+            </div>
+        </section>
+    }
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
+

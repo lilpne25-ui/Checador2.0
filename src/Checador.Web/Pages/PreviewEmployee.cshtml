@@ -1,0 +1,110 @@
+﻿@page
+@model Checador.Web.Pages.PreviewEmployeeModel
+@{
+    ViewData["Title"] = "Preview por empleado";
+}
+
+<div class="page-shell">
+    <section class="page-hero">
+        <div>
+            <p class="hero-kicker">Consulta / Empleado</p>
+            <h1 class="hero-title">Preview por empleado</h1>
+            <p class="hero-description">Analiza asistencia diaria por persona, con horas trabajadas y horas extra en el rango seleccionado.</p>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger" role="alert" aria-live="assertive">@Model.ErrorMessage</div>
+    }
+
+    <section class="table-shell">
+        <div class="table-toolbar">
+            <div class="table-toolbar-meta">
+                <h2 class="table-toolbar-title">Filtros de consulta</h2>
+                <p class="table-toolbar-subtitle">Usa los parametros existentes para cargar vista diaria.</p>
+            </div>
+            <form method="get" class="table-filter-form">
+                <div>
+                    <label asp-for="UserId" class="form-label"></label>
+                    <input asp-for="UserId" class="form-control" />
+                </div>
+                <div>
+                    <label asp-for="From" class="form-label"></label>
+                    <input asp-for="From" class="form-control" type="date" />
+                </div>
+                <div>
+                    <label asp-for="To" class="form-label"></label>
+                    <input asp-for="To" class="form-control" type="date" />
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-primary toolbar-primary-mobile">Consultar</button>
+                </div>
+            </form>
+        </div>
+
+        @if (Model.Preview is not null)
+        {
+            <div class="table-toolbar border-top-0">
+                <div class="table-toolbar-meta">
+                    <h3 class="table-toolbar-title mb-0">@Model.Preview.EmployeeName (ID @Model.Preview.UserId)</h3>
+                    <p class="table-toolbar-subtitle">Resumen de horas en el rango filtrado.</p>
+                </div>
+                <div class="table-toolbar-actions">
+                    <span class="table-badge table-badge-info">Horas: @Model.Preview.TotalWorkedHours</span>
+                    <span class="table-badge table-badge-warn">Extra: @Model.Preview.TotalExtraHours</span>
+                </div>
+            </div>
+
+            @if (Model.Preview.Days.Count > 0)
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped table-grid mb-0">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Entrada</th>
+                                <th>Salida comida</th>
+                                <th>Entrada comida</th>
+                                <th>Salida</th>
+                                <th>Horas</th>
+                                <th>Horas extra</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var d in Model.Preview.Days)
+                        {
+                            <tr>
+                                <td>@d.Date</td>
+                                <td>@(d.Entrada?.ToString("HH:mm") ?? "-")</td>
+                                <td>@(d.SalidaComida?.ToString("HH:mm") ?? "-")</td>
+                                <td>@(d.EntradaComida?.ToString("HH:mm") ?? "-")</td>
+                                <td>@(d.Salida?.ToString("HH:mm") ?? "-")</td>
+                                <td>@(d.HorasTrabajadas?.ToString("0.##") ?? "-")</td>
+                                <td>@(d.HorasExtra?.ToString("0.##") ?? "-")</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <div class="empty-state-icon">DIA</div>
+                    <p class="empty-state-title">Sin detalle diario</p>
+                    <p class="empty-state-copy">No hubo registros para el empleado y rango solicitados.</p>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">EMP</div>
+                <p class="empty-state-title">Carga una consulta</p>
+                <p class="empty-state-copy">Ingresa empleado y rango para mostrar la tabla de resultados.</p>
+            </div>
+        }
+    </section>
+</div>
+

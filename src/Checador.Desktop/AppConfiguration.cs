@@ -40,7 +40,19 @@ public sealed class AppConfiguration
         public bool Enabled { get; set; } = true;
         public bool PreferDirect { get; set; } = true;
         public bool FallbackToAccess { get; set; } = true;
-        public string Ip { get; set; } = "192.168.1.201";
+        public bool EnforceSyncAgentOnly { get; set; } = true;
+        public List<string> AllowedEntryAssemblies { get; set; } = new() { "Checador.SyncAgent" };
+        public string Ip { get; set; } = "127.0.0.1";
+        public int Port { get; set; } = 4370;
+        public int CommKey { get; set; } = 0;
+        public int MachineNumber { get; set; } = 1;
+        public List<DeviceItemSection> Devices { get; set; } = new();
+    }
+
+    public sealed class DeviceItemSection
+    {
+        public string Label { get; set; } = string.Empty;
+        public string Ip { get; set; } = string.Empty;
         public int Port { get; set; } = 4370;
         public int CommKey { get; set; } = 0;
         public int MachineNumber { get; set; } = 2;
@@ -62,7 +74,7 @@ public sealed class AppConfiguration
     public sealed class PervasiveSyncSection
     {
         public bool Enabled { get; set; } = false;
-        public string ConnectionString { get; set; } = "Driver={Pervasive ODBC Unicode Interface};ServerName=OCISERVER;DBQ=GLOBALOCI;UID=GLOBALOCI;PWD=GLOBALOCI;";
+        public string ConnectionString { get; set; } = string.Empty;
         public string AttendanceTable { get; set; } = "TIME_ATTENDANCE";
         public string InProcessTable { get; set; } = "EMP_IN_PROCESS_G";
         public bool DeleteInProcessOnExit { get; set; } = true;
@@ -80,7 +92,7 @@ public sealed class AppConfiguration
 
     public sealed class ReportSection
     {
-        public string OutputDirectory { get; set; } = @"\\ociserver\INNOVAX\AREA DE TRABAJO\C.- RECURSOS HUMANOS\REPORTS";
+        public string OutputDirectory { get; set; } = "reports";
         public string? TemplatePath { get; set; } = "formato.xlsx";
         public string? CompanyName { get; set; } = "Operadora Comercial Innovax";
         public string DefaultFileNamePattern { get; set; } = "{Empleado}_{Semana}.xlsx";

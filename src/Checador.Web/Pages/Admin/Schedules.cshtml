@@ -1,0 +1,150 @@
+﻿@page
+@model Checador.Web.Pages.Admin.SchedulesModel
+@{
+    ViewData["Title"] = "Horarios";
+}
+
+<div class="page-shell">
+    <section class="page-hero page-hero-compact">
+        <div>
+            <p class="hero-kicker">Admin / Horarios</p>
+            <h1 class="hero-title">Catalogo de horarios</h1>
+            <p class="hero-description">Define entrada, salida y tolerancia de retardo por horario.</p>
+        </div>
+        <div class="hero-actions">
+            <a asp-page="/Admin/Employees" class="btn btn-secondary-soft">Volver a empleados</a>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert alert-warning" role="alert" aria-live="assertive">@Model.ErrorMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Model.OperationMessage))
+    {
+        <div class="alert @(Model.OperationSuccess ? "alert-success" : "alert-danger")" role="alert" aria-live="@(Model.OperationSuccess ? "polite" : "assertive")">@Model.OperationMessage</div>
+    }
+
+    <form method="post" asp-page-handler="Save" class="panel-form form-panel">
+        <header class="panel-header">
+            <div>
+                <h2 class="panel-title">Alta y edicion</h2>
+                <p class="panel-subtitle">Si el codigo existe, se actualiza el horario.</p>
+            </div>
+        </header>
+
+        <div class="panel-body form-sections">
+            <div class="row g-3">
+                <div class="col-sm-6 col-lg-2">
+                    <label asp-for="Input.Code" class="form-label"></label>
+                    <input asp-for="Input.Code" class="form-control" type="number" min="1" />
+                    <span asp-validation-for="Input.Code" class="text-danger small validation-message"></span>
+                </div>
+
+                <div class="col-lg-4">
+                    <label asp-for="Input.Name" class="form-label"></label>
+                    <input asp-for="Input.Name" class="form-control" />
+                    <span asp-validation-for="Input.Name" class="text-danger small validation-message"></span>
+                </div>
+
+                <div class="col-sm-6 col-lg-2">
+                    <label asp-for="Input.StartTime" class="form-label"></label>
+                    <input asp-for="Input.StartTime" class="form-control" type="time" />
+                    <span asp-validation-for="Input.StartTime" class="text-danger small validation-message"></span>
+                </div>
+
+                <div class="col-sm-6 col-lg-2">
+                    <label asp-for="Input.EndTime" class="form-label"></label>
+                    <input asp-for="Input.EndTime" class="form-control" type="time" />
+                    <span asp-validation-for="Input.EndTime" class="text-danger small validation-message"></span>
+                </div>
+
+                <div class="col-sm-6 col-lg-1">
+                    <label asp-for="Input.StandardHours" class="form-label"></label>
+                    <input asp-for="Input.StandardHours" class="form-control" type="number" min="0.10" max="24" step="0.01" />
+                    <span asp-validation-for="Input.StandardHours" class="text-danger small validation-message"></span>
+                </div>
+
+                <div class="col-sm-6 col-lg-1">
+                    <label asp-for="Input.LateToleranceMinutes" class="form-label"></label>
+                    <input asp-for="Input.LateToleranceMinutes" class="form-control" type="number" min="0" max="180" />
+                    <span asp-validation-for="Input.LateToleranceMinutes" class="text-danger small validation-message"></span>
+                </div>
+
+                <div class="col-12">
+                    <div class="form-check">
+                        <input asp-for="Input.IsActive" class="form-check-input" />
+                        <label asp-for="Input.IsActive" class="form-check-label"></label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-footer panel-footer-sticky">
+            <button type="submit" class="btn btn-primary">Guardar horario</button>
+            <a asp-page="/Admin/Schedules" class="btn btn-secondary-soft">Limpiar</a>
+        </div>
+    </form>
+
+    <section class="table-shell mt-4">
+        <div class="table-toolbar">
+            <div class="table-toolbar-meta">
+                <h2 class="table-toolbar-title">Horarios registrados</h2>
+                <p class="table-toolbar-subtitle">Estos horarios se asignan desde el modulo de empleados.</p>
+            </div>
+            <div class="table-toolbar-actions">
+                <span class="table-badge table-badge-info">@Model.Schedules.Count horarios</span>
+            </div>
+        </div>
+
+        @if (Model.Schedules.Count > 0)
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-striped align-middle table-grid mb-0">
+                    <thead>
+                        <tr>
+                            <th>Codigo</th>
+                            <th>Nombre</th>
+                            <th>Entrada</th>
+                            <th>Salida</th>
+                            <th>Horas</th>
+                            <th>Tolerancia</th>
+                            <th>Estatus</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var item in Model.Schedules.OrderBy(x => x.Code))
+                    {
+                        <tr>
+                            <td>@item.Code</td>
+                            <td>@item.Name</td>
+                            <td>@item.StartTime.ToString(@"hh\:mm")</td>
+                            <td>@item.EndTime.ToString(@"hh\:mm")</td>
+                            <td>@item.StandardHours</td>
+                            <td>@item.LateToleranceMinutes min</td>
+                            <td>
+                                <span class="table-badge @(item.IsActive ? "table-badge-success" : "table-badge-muted")">
+                                    @(item.IsActive ? "Activo" : "Inactivo")
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">SCH</div>
+                <p class="empty-state-title">No hay horarios configurados</p>
+                <p class="empty-state-copy">Agrega al menos un horario para habilitar asignacion por empleado.</p>
+            </div>
+        }
+    </section>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

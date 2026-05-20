@@ -1,0 +1,95 @@
+﻿@page
+@model Checador.Web.Pages.KpiModel
+@{
+    ViewData["Title"] = "KPI";
+
+    var hasData = Model.Kpi is not null;
+    var extraHours = hasData ? Model.Kpi!.TotalExtraHours : 0;
+    var withoutRecords = hasData ? Model.Kpi!.EmployeesWithoutRecords : 0;
+    var employeesProcessed = hasData ? Model.Kpi!.EmployeesProcessed : 0;
+    var coverageStatus = hasData && employeesProcessed > 0 && withoutRecords == 0 ? "status-good" : "status-warn";
+    var extraStatus = hasData && extraHours > 0 ? "status-info" : "status-good";
+}
+
+<div class="page-shell">
+    <section class="page-hero">
+        <div>
+            <p class="hero-kicker">Analytics / KPI</p>
+            <h1 class="hero-title">Resumen de operacion por rango</h1>
+            <p class="hero-description">Indicadores de cobertura, horas trabajadas y comportamiento de horas extra para seguimiento diario.</p>
+        </div>
+        <div class="hero-actions">
+            <a class="btn btn-outline-primary" asp-page="/PreviewAll">Ir a preview masivo</a>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger" role="alert" aria-live="assertive">@Model.ErrorMessage</div>
+    }
+
+    <section class="panel-form">
+        <header class="panel-header">
+            <h2 class="panel-title">Filtro de consulta</h2>
+            <p class="panel-subtitle">Ajusta el periodo para refrescar metricas.</p>
+        </header>
+        <div class="panel-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label asp-for="From" class="form-label"></label>
+                    <input asp-for="From" class="form-control" type="date" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="To" class="form-label"></label>
+                    <input asp-for="To" class="form-control" type="date" />
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary w-100">Consultar</button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    @if (Model.Kpi is not null)
+    {
+        <section class="metric-grid">
+            <article class="metric-card">
+                <span class="metric-icon">EMP</span>
+                <div>
+                    <p class="metric-label">Empleados procesados</p>
+                    <p class="metric-value">@Model.Kpi.EmployeesProcessed</p>
+                    <p class="metric-note">
+                        <span class="status-pill @coverageStatus">Cobertura</span>
+                    </p>
+                </div>
+            </article>
+            <article class="metric-card">
+                <span class="metric-icon">S/R</span>
+                <div>
+                    <p class="metric-label">Sin registro</p>
+                    <p class="metric-value">@Model.Kpi.EmployeesWithoutRecords</p>
+                    <p class="metric-note">Empleados sin marcas en el rango.</p>
+                </div>
+            </article>
+            <article class="metric-card">
+                <span class="metric-icon">HRS</span>
+                <div>
+                    <p class="metric-label">Horas trabajadas</p>
+                    <p class="metric-value">@Model.Kpi.TotalWorkedHours</p>
+                    <p class="metric-note">Total acumulado del periodo.</p>
+                </div>
+            </article>
+            <article class="metric-card">
+                <span class="metric-icon">OT</span>
+                <div>
+                    <p class="metric-label">Horas extra</p>
+                    <p class="metric-value">@Model.Kpi.TotalExtraHours</p>
+                    <p class="metric-note">
+                        <span class="status-pill @extraStatus">Monitoreo</span>
+                    </p>
+                </div>
+            </article>
+        </section>
+    }
+</div>
+

@@ -70,6 +70,18 @@ public sealed class AttendanceReportOrchestrator
             request.FechaInicio,
             request.FechaFin,
             cancellationToken);
+        var rawPunches = punches;
+
+        if (request.UseSimulatedDataWhenEmpty && punches.Count == 0)
+        {
+            var simulatedEmployeeName = await ResolveEmployeeNameAsync(request.UserId, request.EmployeeName, cancellationToken);
+            punches = BuildSimulatedPunches(
+                request.UserId,
+                simulatedEmployeeName,
+                request.FechaInicio,
+                request.FechaFin,
+                request.WorkScheduleCode);
+        }
 
         var processed = _processor.Process(punches);
         var employeeName = request.EmployeeName;
@@ -86,9 +98,10 @@ public sealed class AttendanceReportOrchestrator
 
         processed = EnsureDateCoverage(processed, request.FechaInicio, request.FechaFin, request.UserId, employeeName);
 
-        var derivedScheduleCode = request.WorkScheduleCode ?? punches
+        var derivedScheduleCode = request.WorkScheduleCode ?? rawPunches
             .Select(p => p.WorkScheduleCode)
-            .FirstOrDefault(code => code.HasValue);
+            .FirstOrDefault(code => code.HasValue)
+            ?? punches.Select(p => p.WorkScheduleCode).FirstOrDefault(code => code.HasValue);
 
         var derivedShiftType = !string.IsNullOrWhiteSpace(request.WorkShiftType)
             ? request.WorkShiftType
@@ -182,6 +195,16 @@ public sealed class AttendanceReportOrchestrator
                 .OrderBy(p => p.CheckTime)
                 .ToList();
 
+            if (request.UseSimulatedDataWhenEmpty && employeePunchesList.Count == 0)
+            {
+                employeePunchesList = BuildSimulatedPunches(
+                    employee.UserId,
+                    employee.EmployeeName,
+                    request.FechaInicio,
+                    request.FechaFin,
+                    request.WorkScheduleCode).ToList();
+            }
+
             var processed = _processor.Process(employeePunchesList);
             processed = EnsureDateCoverage(processed, request.FechaInicio, request.FechaFin, employee.UserId, employee.EmployeeName);
 
@@ -263,8 +286,19 @@ public sealed class AttendanceReportOrchestrator
         {
             punchesByUser.TryGetValue(employee.UserId, out var employeePunches);
             employeePunches ??= Enumerable.Empty<PunchRecord>();
+            var employeePunchesList = employeePunches.OrderBy(p => p.CheckTime).ToList();
 
-            var processed = _processor.Process(employeePunches);
+            if (request.UseSimulatedDataWhenEmpty && employeePunchesList.Count == 0)
+            {
+                employeePunchesList = BuildSimulatedPunches(
+                    employee.UserId,
+                    employee.EmployeeName,
+                    request.FechaInicio,
+                    request.FechaFin,
+                    request.WorkScheduleCode).ToList();
+            }
+
+            var processed = _processor.Process(employeePunchesList);
             processed = EnsureDateCoverage(processed, request.FechaInicio, request.FechaFin, employee.UserId, employee.EmployeeName);
 
             var hasAnyRecord = processed.Any(d => d.Estatus != "SIN_REGISTRO");
@@ -282,7 +316,12 @@ public sealed class AttendanceReportOrchestrator
                 request.TemplatePath,
                 new ReportTemplateContext
                 {
-                    EmployeeName = employee.EmployeeName
+                    EmployeeName = employee.EmployeeName,
+                    Area = request.Area,
+                    Position = request.Position,
+                    WorkScheduleCode = request.WorkScheduleCode,
+                    WorkScheduleDisplay = request.WorkScheduleDisplay,
+                    WorkShiftType = request.WorkShiftType
                 },
                 cancellationToken,
                 outputFormat);
@@ -336,6 +375,49 @@ public sealed class AttendanceReportOrchestrator
         }
 
         return byDate.Values.OrderBy(x => x.Date).ToList();
+    }
+
+    private async Task<string> ResolveEmployeeNameAsync(int userId, string? requestedName, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedName))
+        {
+            return requestedName.Trim();
+        }
+
+        var employees = await _dataSource.GetEmployeesAsync(cancellationToken);
+        return employees.FirstOrDefault(e => e.UserId == userId)?.EmployeeName ?? $"Empleado_{userId}";
+    }
+
+    private static IReadOnlyList<PunchRecord> BuildSimulatedPunches(
+        int userId,
+        string employeeName,
+        DateTime from,
+        DateTime to,
+        int? workScheduleCode)
+    {
+        var punches = new List<PunchRecord>();
+        var start = from.Date;
+        var end = to.Date;
+        var scheduleCode = workScheduleCode ?? 1;
+        var scheduledStart = scheduleCode == 3 ? new TimeSpan(18, 0, 0) : new TimeSpan(7, 0, 0);
+        var standardHours = scheduleCode == 3 ? 9.6m : 8m;
+
+        for (var day = start; day <= end; day = day.AddDays(1))
+        {
+            if (day.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+            {
+                continue;
+            }
+
+            var offset = (day.Day + userId) % 4;
+            var entry = day.Date.Add(scheduledStart).AddMinutes(offset == 0 ? 12 : -3 + offset);
+            var exit = entry.AddHours((double)standardHours).AddMinutes(offset == 1 ? 45 : 10);
+
+            punches.Add(new PunchRecord(userId, employeeName, entry, 0, scheduleCode, true, standardHours, scheduleCode == 3));
+            punches.Add(new PunchRecord(userId, employeeName, exit, 1, scheduleCode, true, standardHours, scheduleCode == 3));
+        }
+
+        return punches;
     }
 
     private static string? ResolveShiftType(int? workScheduleCode)

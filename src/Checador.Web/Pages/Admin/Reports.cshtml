@@ -1,0 +1,356 @@
+﻿@page
+@model Checador.Web.Pages.Admin.ReportsModel
+@{
+    ViewData["Title"] = "Reportes";
+}
+
+<div class="page-shell">
+    <section class="page-hero page-hero-compact">
+        <div>
+            <p class="hero-kicker">Admin / Reportes</p>
+            <h1 class="hero-title">Generacion de reportes</h1>
+            <p class="hero-description">Genera y descarga reporte general, horas extras y retardos desde el navegador.</p>
+        </div>
+        <div class="hero-actions">
+            <a asp-page="/Admin/Employees" class="btn btn-secondary-soft">Volver a empleados</a>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert alert-warning" role="alert" aria-live="assertive">@Model.ErrorMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Model.OperationMessage))
+    {
+        <div class="alert @(Model.OperationSuccess ? "alert-success" : "alert-danger")" role="alert" aria-live="@(Model.OperationSuccess ? "polite" : "assertive")">@Model.OperationMessage</div>
+    }
+
+    <form method="post" asp-page-handler="GenerateReport" class="panel-form form-panel">
+        <input type="hidden" name="SubmittedForm" value="general" />
+        <header class="panel-header">
+            <div>
+                <h2 class="panel-title">Reporte general</h2>
+                <p class="panel-subtitle">Usa la plantilla semanal oficial para generar archivo por empleado o masivo.</p>
+            </div>
+        </header>
+
+        <div class="panel-body form-sections">
+            <section class="form-section">
+                <div class="form-section-head">
+                    <h3 class="form-section-title">Alcance</h3>
+                    <p class="form-section-copy">Empleado y rango que se procesara.</p>
+                </div>
+                <div class="row g-3">
+                    <div class="col-lg-6">
+                        <label asp-for="Input.UserId" class="form-label"></label>
+                        <select asp-for="Input.UserId" class="form-select">
+                            <option value="">-- Todos los empleados --</option>
+                            @foreach (var employee in Model.Employees)
+                            {
+                                <option value="@employee.UserId">#@employee.UserId - @employee.EmployeeName</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <label asp-for="Input.FromDate" class="form-label"></label>
+                        <input asp-for="Input.FromDate" class="form-control" type="date" />
+                        <span asp-validation-for="Input.FromDate" class="text-danger small validation-message"></span>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <label asp-for="Input.ToDate" class="form-label"></label>
+                        <input asp-for="Input.ToDate" class="form-control" type="date" />
+                        <span asp-validation-for="Input.ToDate" class="text-danger small validation-message"></span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="form-section">
+                <div class="form-section-head">
+                    <h3 class="form-section-title">Salida</h3>
+                    <p class="form-section-copy">El archivo se descarga en el navegador; la ubicacion final la eliges al guardar.</p>
+                </div>
+                <div class="row g-3">
+                    <div class="col-sm-6 col-lg-2">
+                        <label asp-for="Input.OutputFormat" class="form-label"></label>
+                        <select asp-for="Input.OutputFormat" class="form-select">
+                            <option value="xlsx">XLSX</option>
+                            <option value="csv">CSV</option>
+                            <option value="pdf">PDF</option>
+                        </select>
+                        <span asp-validation-for="Input.OutputFormat" class="text-danger small validation-message"></span>
+                    </div>
+                    <div class="col-lg-6">
+                        <label asp-for="Input.OutputDirectory" class="form-label"></label>
+                        <input asp-for="Input.OutputDirectory" class="form-control" placeholder="Ejemplo: reports/semanal" />
+                        <span asp-validation-for="Input.OutputDirectory" class="text-danger small validation-message"></span>
+                    </div>
+                    <div class="col-lg-4">
+                        <label asp-for="Input.Company" class="form-label"></label>
+                        <input asp-for="Input.Company" class="form-control" placeholder="Opcional" />
+                        <span asp-validation-for="Input.Company" class="text-danger small validation-message"></span>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input asp-for="Input.UseSimulatedDataWhenEmpty" class="form-check-input" />
+                            <label asp-for="Input.UseSimulatedDataWhenEmpty" class="form-check-label"></label>
+                        </div>
+                        <div class="form-text">Util para demo: si el empleado no tiene marcas en el rango, se llena con entradas/salidas simuladas.</div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div class="panel-footer panel-footer-sticky">
+            <button type="submit" class="btn btn-primary">Generar y descargar</button>
+            <a asp-page="/Admin/Reports" class="btn btn-secondary-soft">Limpiar</a>
+        </div>
+    </form>
+
+    <form method="post" asp-page-handler="GenerateOvertime" class="panel-form form-panel mt-4">
+        <input type="hidden" name="SubmittedForm" value="overtime" />
+        <header class="panel-header">
+            <div>
+                <h2 class="panel-title">Formato de horas extras</h2>
+                <p class="panel-subtitle">Autoriza horas extra por empleado y documenta la justificacion.</p>
+            </div>
+        </header>
+
+        <div class="panel-body form-sections">
+            <section class="form-section">
+                <div class="form-section-head">
+                    <h3 class="form-section-title">Empleado y solicitud</h3>
+                    <p class="form-section-copy">Datos base para el formato.</p>
+                </div>
+                <div class="row g-3">
+                    <div class="col-lg-5">
+                        <label asp-for="OvertimeInput.UserId" class="form-label"></label>
+                        <select asp-for="OvertimeInput.UserId" class="form-select">
+                            <option value="">-- Selecciona empleado --</option>
+                            @foreach (var employee in Model.Employees)
+                            {
+                                <option value="@employee.UserId">#@employee.UserId - @employee.EmployeeName</option>
+                            }
+                        </select>
+                        <span asp-validation-for="OvertimeInput.UserId" class="text-danger small validation-message"></span>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <label asp-for="OvertimeInput.WorkOrderNumber" class="form-label"></label>
+                        <input asp-for="OvertimeInput.WorkOrderNumber" class="form-control" />
+                        <span asp-validation-for="OvertimeInput.WorkOrderNumber" class="text-danger small validation-message"></span>
+                    </div>
+                    <div class="col-sm-6 col-lg-2">
+                        <label asp-for="OvertimeInput.RequestDate" class="form-label"></label>
+                        <input asp-for="OvertimeInput.RequestDate" class="form-control" type="date" />
+                        <span asp-validation-for="OvertimeInput.RequestDate" class="text-danger small validation-message"></span>
+                    </div>
+                    <div class="col-sm-6 col-lg-2">
+                        <label asp-for="OvertimeInput.FileName" class="form-label"></label>
+                        <input asp-for="OvertimeInput.FileName" class="form-control" placeholder="horas-extras.xlsx" />
+                        <span asp-validation-for="OvertimeInput.FileName" class="text-danger small validation-message"></span>
+                    </div>
+                    <div class="col-sm-6 col-lg-2">
+                        <label asp-for="OvertimeInput.OutputFormat" class="form-label"></label>
+                        <select asp-for="OvertimeInput.OutputFormat" class="form-select">
+                            <option value="xlsx">XLSX</option>
+                            <option value="csv">CSV</option>
+                            <option value="pdf">PDF</option>
+                        </select>
+                        <span asp-validation-for="OvertimeInput.OutputFormat" class="text-danger small validation-message"></span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="form-section">
+                <div class="form-section-head">
+                    <h3 class="form-section-title">Periodo y autorizacion</h3>
+                    <p class="form-section-copy">Rango del trabajo y responsable inmediato.</p>
+                </div>
+                <div class="row g-3">
+                    <div class="col-sm-6 col-lg-3">
+                        <label asp-for="OvertimeInput.FromDate" class="form-label"></label>
+                        <input asp-for="OvertimeInput.FromDate" class="form-control" type="date" />
+                        <span asp-validation-for="OvertimeInput.FromDate" class="text-danger small validation-message"></span>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <label asp-for="OvertimeInput.ToDate" class="form-label"></label>
+                        <input asp-for="OvertimeInput.ToDate" class="form-control" type="date" />
+                        <span asp-validation-for="OvertimeInput.ToDate" class="text-danger small validation-message"></span>
+                    </div>
+                    <div class="col-lg-6">
+                        <label asp-for="OvertimeInput.ImmediateBossName" class="form-label"></label>
+                        <input asp-for="OvertimeInput.ImmediateBossName" class="form-control" />
+                        <span asp-validation-for="OvertimeInput.ImmediateBossName" class="text-danger small validation-message"></span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="form-section">
+                <div class="form-section-head">
+                    <h3 class="form-section-title">Detalle del trabajo</h3>
+                    <p class="form-section-copy">Descripcion y datos internos. El archivo se entrega como descarga web.</p>
+                </div>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label asp-for="OvertimeInput.WorkDescription" class="form-label"></label>
+                        <textarea asp-for="OvertimeInput.WorkDescription" class="form-control" rows="3"></textarea>
+                        <span asp-validation-for="OvertimeInput.WorkDescription" class="text-danger small validation-message"></span>
+                    </div>
+                    <div class="col-lg-6">
+                        <label asp-for="OvertimeInput.Notes" class="form-label"></label>
+                        <input asp-for="OvertimeInput.Notes" class="form-control" />
+                        <span asp-validation-for="OvertimeInput.Notes" class="text-danger small validation-message"></span>
+                    </div>
+                    <div class="col-lg-6">
+                        <label asp-for="OvertimeInput.OutputDirectory" class="form-label"></label>
+                        <input asp-for="OvertimeInput.OutputDirectory" class="form-control" placeholder="Ejemplo: reports/horas-extras" />
+                        <span asp-validation-for="OvertimeInput.OutputDirectory" class="text-danger small validation-message"></span>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input asp-for="OvertimeInput.UseSimulatedDataWhenEmpty" class="form-check-input" />
+                            <label asp-for="OvertimeInput.UseSimulatedDataWhenEmpty" class="form-check-label"></label>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div class="panel-footer panel-footer-sticky">
+            <button type="submit" class="btn btn-secondary-soft">Generar y descargar horas extras</button>
+        </div>
+    </form>
+
+    <form method="post" asp-page-handler="GenerateLateness" class="panel-form form-panel mt-4">
+        <input type="hidden" name="SubmittedForm" value="lateness" />
+        <header class="panel-header">
+            <div>
+                <h2 class="panel-title">Reporte de retardos</h2>
+                <p class="panel-subtitle">Detecta entradas fuera de tolerancia por horario asignado.</p>
+            </div>
+        </header>
+
+        <div class="panel-body form-sections">
+            <div class="row g-3">
+                <div class="col-lg-6">
+                    <label asp-for="LatenessInput.UserId" class="form-label"></label>
+                    <select asp-for="LatenessInput.UserId" class="form-select">
+                        <option value="">-- Todos los empleados --</option>
+                        @foreach (var employee in Model.Employees)
+                        {
+                            <option value="@employee.UserId">#@employee.UserId - @employee.EmployeeName</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label asp-for="LatenessInput.FromDate" class="form-label"></label>
+                    <input asp-for="LatenessInput.FromDate" class="form-control" type="date" />
+                    <span asp-validation-for="LatenessInput.FromDate" class="text-danger small validation-message"></span>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label asp-for="LatenessInput.ToDate" class="form-label"></label>
+                    <input asp-for="LatenessInput.ToDate" class="form-control" type="date" />
+                    <span asp-validation-for="LatenessInput.ToDate" class="text-danger small validation-message"></span>
+                </div>
+                <div class="col-lg-6">
+                    <label asp-for="LatenessInput.OutputDirectory" class="form-label"></label>
+                    <input asp-for="LatenessInput.OutputDirectory" class="form-control" placeholder="Ejemplo: reports/retardos" />
+                    <span asp-validation-for="LatenessInput.OutputDirectory" class="text-danger small validation-message"></span>
+                </div>
+                <div class="col-lg-6">
+                    <label asp-for="LatenessInput.FileName" class="form-label"></label>
+                    <input asp-for="LatenessInput.FileName" class="form-control" placeholder="retardos_semana.xlsx" />
+                    <span asp-validation-for="LatenessInput.FileName" class="text-danger small validation-message"></span>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label asp-for="LatenessInput.OutputFormat" class="form-label"></label>
+                    <select asp-for="LatenessInput.OutputFormat" class="form-select">
+                        <option value="xlsx">XLSX</option>
+                        <option value="csv">CSV</option>
+                        <option value="pdf">PDF</option>
+                    </select>
+                    <span asp-validation-for="LatenessInput.OutputFormat" class="text-danger small validation-message"></span>
+                </div>
+                <div class="col-12">
+                    <div class="form-check">
+                        <input asp-for="LatenessInput.UseSimulatedDataWhenEmpty" class="form-check-input" />
+                        <label asp-for="LatenessInput.UseSimulatedDataWhenEmpty" class="form-check-label"></label>
+                    </div>
+                    <div class="form-text">Si no hay retardos reales, genera incidencias demo para validar el formato.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-footer panel-footer-sticky">
+            <button type="submit" class="btn btn-outline-warning">Generar y descargar retardos</button>
+        </div>
+    </form>
+
+    @if (Model.LastResult is not null)
+    {
+        <section class="section-card low-card mt-4">
+            <header class="section-head">
+                <h2 class="section-title">Resultado reporte general</h2>
+            </header>
+            <div class="section-body">
+                <ul class="summary-list">
+                    <li><strong>Procesados:</strong> @Model.LastResult.EmployeesProcessed</li>
+                    <li><strong>Sin registros:</strong> @Model.LastResult.EmployeesWithoutRecords</li>
+                    <li><strong>Horas trabajadas:</strong> @Model.LastResult.TotalWorkedHours</li>
+                    <li><strong>Horas extra:</strong> @Model.LastResult.TotalExtraHours</li>
+                    <li><strong>Formato:</strong> @Model.LastResult.OutputFormat</li>
+                </ul>
+                @if (Model.LastResult.ReportPaths.Count > 0)
+                {
+                    <div class="mt-3">
+                        <strong>Archivos generados:</strong>
+                        <ul class="summary-list mb-0 mt-2">
+                            @foreach (var path in Model.LastResult.ReportPaths)
+                            {
+                                <li><code>@path</code></li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+
+    @if (Model.LastOvertimeResult is not null)
+    {
+        <section class="section-card low-card mt-4">
+            <header class="section-head">
+                <h2 class="section-title">Resultado formato de horas extras</h2>
+            </header>
+            <div class="section-body">
+                <ul class="summary-list mb-0">
+                    <li><strong>Empleado:</strong> @Model.LastOvertimeResult.EmployeeName (@Model.LastOvertimeResult.UserId)</li>
+                    <li><strong>Archivo:</strong> <code>@Model.LastOvertimeResult.FileName</code></li>
+                    <li><strong>Ruta:</strong> <code>@Model.LastOvertimeResult.OutputPath</code></li>
+                </ul>
+            </div>
+        </section>
+    }
+
+    @if (Model.LastLatenessResult is not null)
+    {
+        <section class="section-card low-card mt-4">
+            <header class="section-head">
+                <h2 class="section-title">Resultado reporte de retardos</h2>
+            </header>
+            <div class="section-body">
+                <ul class="summary-list mb-0">
+                    <li><strong>Periodo:</strong> @Model.LastLatenessResult.FromDate.ToString("dd/MM/yyyy") - @Model.LastLatenessResult.ToDate.ToString("dd/MM/yyyy")</li>
+                    <li><strong>Incidencias:</strong> @Model.LastLatenessResult.IncidentsCount</li>
+                    <li><strong>Empleados afectados:</strong> @Model.LastLatenessResult.AffectedEmployees</li>
+                    <li><strong>Archivo:</strong> <code>@Model.LastLatenessResult.FileName</code></li>
+                    <li><strong>Ruta:</strong> <code>@Model.LastLatenessResult.OutputPath</code></li>
+                </ul>
+            </div>
+        </section>
+    }
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

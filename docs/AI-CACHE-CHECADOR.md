@@ -27,6 +27,279 @@
 
 ## Historial de cambios recientes
 
+### 2026-05-04 · Cierre técnico Fase 1, 2 y 3 (Web/API)
+
+**Solicitud**
+
+- Cerrar operativamente Fase 1, Fase 2 y Fase 3 del plan de paridad Web vs Desktop.
+
+**Cambio aplicado**
+
+- `src/Checador.Infrastructure.Excel/OvertimeWorkOrderFormatGenerator.cs` (nuevo)
+  - Generador reutilizable de formato OT RH en Excel.
+- `src/Checador.Api/Auth/ApiAuthConstants.cs`
+  - Nueva policy: `PolicyAdminEmployeesReassign`.
+- `src/Checador.Api/Program.cs`
+  - Policy de permiso fino para `admin.employees.reassign`.
+  - Endpoints nuevos:
+    - `POST /admin/employees/reassign/preview`
+    - `POST /admin/employees/reassign/apply` (con confirmación explícita `APLICAR CAMBIO`)
+    - `POST /admin/manual-punch/batch`
+    - `POST /reports/overtime-format/generate`
+  - `POST /admin/manual-punch` se deja para alta puntual (single) y lote se enruta al endpoint batch.
+  - Registro DI de `OvertimeWorkOrderFormatGenerator`.
+- `src/Checador.Web/Models/ApiDtos.cs`
+  - DTOs para reassign (preview/apply), manual batch y OT format.
+- `src/Checador.Web/Services/ChecadorApiClient.cs`
+  - Métodos nuevos para reassign, manual batch y OT format.
+- `src/Checador.Web/Pages/Ops/Index.cshtml`
+  - Refresco automático cada 15s para monitor operativo (criterio Fase 1).
+- `src/Checador.Web/Pages/Admin/Reassign.cshtml(.cs)` (nuevo)
+  - Flujo web completo de cambio por rango con preview + confirmación reforzada.
+- `src/Checador.Web/Pages/Admin/Employees.cshtml`
+  - Acceso directo a `Cambio por rango`.
+- `src/Checador.Web/Pages/Admin/ManualPunch.cshtml(.cs)`
+  - Soporte de modos `0/1/2/3` y alta manual por lote.
+- `src/Checador.Web/Pages/Admin/Reports.cshtml(.cs)`
+  - Sección adicional para generar Formato OT desde web.
+- `src/Checador.Web/Pages/Shared/_Layout.cshtml`
+  - Navegación admin incluye acceso a `Cambio por rango`.
+- `docs/PLAN-PARIDAD-WEB-VS-DESKTOP.md`
+  - Estado actualizado marcando Fases 1, 2 y 3 como cerradas.
+
+**Validación**
+
+- `dotnet build Checador.sln -c Release` ✅ OK.
+- Nota de operación: hubo locks MSB3026/MSB3027 por procesos `Checador.Api`/`Checador.Web` en ejecución; se liberaron y se recompiló en limpio.
+
+**Aprendizaje**
+
+- Para ciclos rápidos de cierre funcional, conviene separar endpoints `single` y `batch` en API aunque compartan servicio interno; simplifica UX, validación y auditoría.
+
+### 2026-05-04 · Cierre técnico Fase 4 (Pervasive preview + limpieza nocturna controlada)
+
+**Solicitud**
+
+- Continuar con Fase 4 del plan de paridad Web vs Desktop para cubrir operación Pervasive desde API/Web.
+
+**Cambio aplicado**
+
+- `src/Checador.Infrastructure.Access/SqlSyncModels.cs`
+  - Nuevo resultado de dry-run: `PervasiveNightShiftCleanupPreviewResult`.
+- `src/Checador.Infrastructure.Access/SqlDeviceSyncService.cs`
+  - Nuevo método `PreviewPervasiveNightShiftHistoricalCleanupAsync(...)`:
+    - calcula candidatas/procesables,
+    - usuarios afectados,
+    - estimado de renglones partidos,
+    - sin ejecutar escrituras.
+- `src/Checador.Api/Auth/ApiAuthConstants.cs`
+  - Nuevas policies: `AdminPervasivePreview`, `AdminPervasiveCleanup`, `AdminSchedulesManage`.
+- `src/Checador.Api/Program.cs`
+  - Registro de policies de permisos finos para Pervasive/Schedules.
+  - Endpoints nuevos:
+    - `GET /admin/pervasive/preview?top=...`
+    - `POST /admin/pervasive/night-cleanup/preview`
+    - `POST /admin/pervasive/night-cleanup/run`
+  - Confirmación reforzada para ejecución (`EJECUTAR LIMPIEZA`) + auditoría estructurada.
+- `src/Checador.Web/Models/ApiDtos.cs`
+  - DTOs nuevos para preview payload Pervasive y cleanup preview/run.
+- `src/Checador.Web/Services/ChecadorApiClient.cs`
+  - Métodos nuevos para consumir endpoints de Fase 4.
+- `src/Checador.Web/Pages/Admin/Pervasive.cshtml(.cs)` (nuevo)
+  - Módulo web de Pervasive con:
+    - tabla de preview,
+    - preview de impacto de limpieza,
+    - ejecución con confirmación textual obligatoria.
+- `src/Checador.Web/Pages/Admin/Employees.cshtml` y `src/Checador.Web/Pages/Shared/_Layout.cshtml`
+  - Se agregó navegación a `Admin/Pervasive`.
+
+**Validación**
+
+- `dotnet build Checador.sln -c Release` ✅ OK.
+- Se liberaron locks previos (`Checador.Api`/`Checador.Web`) antes de recompilar en limpio.
+
+**Aprendizaje**
+
+- Para operaciones destructivas, separar `preview` y `run` (con texto de confirmación) evita ejecuciones accidentales y mejora trazabilidad operativa.
+
+### 2026-05-04 · Inicio Fase 5 (hardening, telemetría y salida)
+
+**Solicitud**
+
+- Arrancar Fase 5 del plan de paridad Web vs Desktop.
+
+**Cambio aplicado**
+
+- `src/Checador.Api/FeatureFlags/ApiModuleFeatureFlags.cs` (nuevo)
+  - Flags por módulo para rollback funcional en API.
+- `src/Checador.Api/Program.cs`
+  - Carga de `FeatureFlags:Modules`.
+  - Middleware de bloqueo por módulo (`503`) para rutas deshabilitadas.
+  - Nuevo endpoint `GET /ops/telemetry` con alertas operativas:
+    - sync no OK / stale,
+    - reloj desconectado / hora no disponible,
+    - fallos de autosync / posible autosync atascado,
+    - contexto de hardening SyncAgent-only.
+- `src/Checador.Api/appsettings.json` y `appsettings.local.example.json`
+  - Sección `FeatureFlags:Modules` inicial.
+- `src/Checador.Web/FeatureFlags/WebModuleFeatureFlags.cs` (nuevo)
+  - Flags por módulo para navegación/acceso Web.
+- `src/Checador.Web/Program.cs`
+  - Carga de flags + middleware de bloqueo (`404`) en páginas deshabilitadas.
+- `src/Checador.Web/Pages/Shared/_Layout.cshtml`
+  - Menú admin condicionado por flags activos.
+- `src/Checador.Web/appsettings.json` y `appsettings.local.example.json`
+  - Sección `FeatureFlags:Modules` inicial.
+- Documentación nueva:
+  - `docs/ROLLBACK-FEATURE-FLAGS-FASE-5.md`
+  - `docs/UAT-FASE-5-CHECKLIST.md`
+  - `docs/MANUAL-OPERACIONES-WEB-FASE-5.md`
+  - `docs/MANUAL-RH-WEB-FASE-5.md`
+- `docs/PLAN-PARIDAD-WEB-VS-DESKTOP.md`
+  - Estado actualizado: Fase 5 iniciada, pendientes de cierre y siguientes pasos.
+
+**Validación**
+
+- Revisión de errores en archivos modificados (`get_errors`): sin errores.
+
+**Aprendizaje**
+
+- Rollback por feature flags reduce impacto operacional: se puede aislar módulo problemático sin apagar el resto de la plataforma.
+
+### 2026-05-04 · Fix runtime ops API + lock de DLL en arranque LAN
+
+**Incidencia**
+
+- En `Checador.Api` aparecían `500` al invocar `/ops/sync/run` y `/ops/device/time/sync`.
+- En compilación/arranque LAN se observaban warnings `MSB3026/MSB3027` por DLL bloqueadas (`.NET Host` usando `bin/Release`).
+
+**Causa raíz**
+
+- Hardening activo (`SyncAgent-only`) bloquea acceso directo a ZKTeco desde API; las acciones ops directas no deben ejecutarse desde API.
+- El script LAN arrancaba con `dotnet run` (sin `--no-build`), provocando recompilación sobre binarios en uso.
+
+**Corrección aplicada**
+
+- `src/Checador.Api/Program.cs`
+  - `/ops/sync/run`, `/ops/device/time/sync` y `start autosync` ahora validan hardening antes de tocar reloj y responden `400` controlado con mensaje operativo.
+  - Se agregó manejo adicional de excepciones para evitar `500` no controlado.
+- `INICIAR-LAN-API-WEB.cmd`
+  - Compila API/Web primero en Release.
+  - Arranca con `dotnet run --no-build` para evitar locks al ejecutar.
+
+**Validación**
+
+- `dotnet build src/Checador.Api/Checador.Api.csproj -c Release` ✅ OK.
+- Sin errores de análisis en archivos modificados (`Program.cs`, `INICIAR-LAN-API-WEB.cmd`).
+
+**Lección**
+
+- En entorno LAN con binarios Release en ejecución, usar `--no-build` al levantar servicios evita reintentos de copia y fallos por archivo bloqueado.
+
+### 2026-05-04 · Fase 3 inicial (alta manual + reportes en API/Web)
+
+**Solicitud**
+
+- Continuar ejecución de Fase 3 después de cerrar AutoSync y Fase 2 de empleados.
+
+**Cambio aplicado**
+
+- `src/Checador.Api/Checador.Api.csproj`
+  - Se agregó referencia a `Checador.Infrastructure.Excel`.
+- `src/Checador.Api/Auth/ApiAuthConstants.cs`
+  - Nuevos permisos/policies: `reports.generate`, `ReportsGenerate`, `AdminManualPunchCreate`.
+- `src/Checador.Api/Auth/ApiPermissionCatalog.cs`
+  - Se agregó `reports.generate` al rol `admin`.
+- `src/Checador.Api/Reports/ApiReportOptions.cs` (nuevo)
+  - Opciones de salida/reportes para API.
+- `src/Checador.Api/appsettings.json`
+  - Nueva sección `Report` (output/template/patrón).
+- `src/Checador.Api/Program.cs`
+  - Se reemplazó `NoOpReportGenerator` por `ClosedXmlReportGenerator`.
+  - Nuevo endpoint `POST /admin/manual-punch` (single/batch) con policy `admin.manual_punch.create`.
+  - Nuevo endpoint `POST /reports/generate` (empleado o masivo, Excel/PDF) con policy `reports.generate`.
+- `src/Checador.Web/Models/ApiDtos.cs`
+  - DTOs nuevos para alta manual y generación de reportes.
+- `src/Checador.Web/Services/ChecadorApiClient.cs`
+  - Métodos nuevos: `CreateAdminManualPunchAsync` y `GenerateReportAsync`.
+- `src/Checador.Web/Pages/Admin/ManualPunch.cshtml(.cs)` (nuevo)
+  - Formulario admin para registrar marca manual.
+- `src/Checador.Web/Pages/Admin/Reports.cshtml(.cs)` (nuevo)
+  - Formulario admin para generar reportes por rango (Excel/PDF).
+- `src/Checador.Web/Pages/Shared/_Layout.cshtml`
+  - Navegación admin con accesos directos a `Alta manual` y `Reportes`.
+
+**Validación**
+
+- `dotnet build Checador.sln` ✅ exitoso (0 errores).
+- Smoke local:
+  - `GET /health/status` => `200`.
+  - `POST /admin/manual-punch` sin auth => `401` (esperado).
+  - `POST /reports/generate` sin auth => `401` (esperado).
+
+**Aprendizaje**
+
+- Para Fase 3 no bastaba abrir endpoints; era bloqueador real conectar API a `ClosedXmlReportGenerator` y su configuración `Report`.
+- Mantener smoke mínimo de hardening (200/401) ayuda a validar rápido seguridad y wiring sin depender de credenciales en sesión.
+
+### 2026-05-04 · Documento guía para paridad Web vs Desktop
+
+**Solicitud**
+
+- Crear un `.md` accionable para convertir `Checador.Web` en una plataforma casi equivalente a `Checador.Desktop`.
+
+**Cambio aplicado**
+
+- Nuevo documento: `docs/PLAN-PARIDAD-WEB-VS-DESKTOP.md`.
+- Contiene:
+  - matriz de brechas funcionales (Desktop vs Web),
+  - roadmap por fases (F0 a F5),
+  - endpoints API sugeridos por módulo,
+  - criterios de aceptación por fase,
+  - riesgos, mitigaciones y KPIs de migración,
+  - plan sugerido de 12 semanas y primer sprint.
+
+**Resultado**
+
+- Queda una hoja de ruta concreta para cerrar el gap funcional de la web sin duplicar lógica de negocio ni perder control operativo.
+
+### 2026-05-04 · Ejecución inicial Fase 0 (RBAC por permisos + endpoints operativos)
+
+**Solicitud**
+
+- Iniciar ejecución técnica del plan de paridad (`docs/PLAN-PARIDAD-WEB-VS-DESKTOP.md`) por backend/API.
+
+**Cambio aplicado**
+
+- `src/Checador.Api/Auth/ApiAuthConstants.cs`
+  - Nuevas constantes de claim de permiso y políticas por permiso.
+- `src/Checador.Api/Auth/ApiPermissionCatalog.cs` (nuevo)
+  - Mapeo rol -> permisos (`consulta`, `admin`).
+- `src/Checador.Api/Auth/BasicAuthenticationHandler.cs`
+  - Emisión de claims `permission` además de `role`.
+- `src/Checador.Api/Program.cs`
+  - Policies por permiso.
+  - Endpoints operativos `/ops/*`:
+    - `/ops/sync/status`
+    - `/ops/sync/run`
+    - `/ops/device/time/sync`
+    - `/ops/live-status`
+    - `/ops/recent-history`
+  - Migración de autorización de endpoints clave a políticas de permiso.
+
+**Validación**
+
+- Build Release de API: OK (tras liberar proceso que bloqueaba DLL).
+- Smoke tests:
+  - `/preview` y `/kpi` con `consulta_demo`: `200`.
+  - `/admin/users` con `consulta_demo`: `403`.
+  - `/ops/live-status` con `consulta_demo`: `403`.
+  - `admin` autenticó correctamente, pero con `mustChangePassword=true` (bloqueo esperado en policies sensibles hasta cambiar password).
+
+**Aprendizaje**
+
+- Un `403` en endpoints de operación con `admin` puede ser correcto cuando `mustChangePassword=true`; no es necesariamente falla de RBAC.
+
 ### 2026-04-13 · Hotfix anti falso-entrada (marca única vespertina) en Checador + SyncAgent
 
 **Incidencia reportada**

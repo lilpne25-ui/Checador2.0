@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Reflection;
+using System.Diagnostics;
 using Checador.Domain.Interfaces;
 using Checador.Domain.Models;
 using Microsoft.CSharp.RuntimeBinder;
@@ -9,6 +10,7 @@ namespace Checador.Infrastructure.Access;
 public sealed class ZkTecoDirectAttendanceDataSource : IAttendanceDataSource
 {
     private readonly DirectDeviceOptions _options;
+    private static readonly object GuardLogLock = new();
 
     public ZkTecoDirectAttendanceDataSource(DirectDeviceOptions options)
     {
@@ -19,39 +21,107 @@ public sealed class ZkTecoDirectAttendanceDataSource : IAttendanceDataSource
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var zkem = Connect();
-        try
-        {
-            var employees = ReadEmployees(zkem).ToDictionary(e => e.UserId, e => e.EmployeeName);
-            var punches = ReadPunches(zkem, from, to, employees);
+        var devices = _options.GetDevices();
+        var allPunches = new List<PunchRecord>();
+        var nameByUser = new Dictionary<int, string>();
+        var errors = new List<string>();
 
-            if (userId.HasValue)
+        foreach (var device in devices)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            object? zkem = null;
+            try
             {
-                punches = punches.Where(p => p.UserId == userId.Value).ToList();
-            }
+                zkem = Connect(device);
 
-            return Task.FromResult<IReadOnlyList<PunchRecord>>(punches);
+                var deviceEmployees = ReadEmployees(zkem, device.MachineNumber);
+                foreach (var employee in deviceEmployees)
+                {
+                    nameByUser[employee.UserId] = employee.EmployeeName;
+                }
+
+                var punches = ReadPunches(zkem, device.MachineNumber, from, to, nameByUser);
+                allPunches.AddRange(punches);
+            }
+            catch (Exception ex)
+            {
+                var label = string.IsNullOrWhiteSpace(device.Label) ? device.Ip : device.Label;
+                errors.Add($"{label} ({device.Ip}:{device.Port}): {ex.Message}");
+            }
+            finally
+            {
+                if (zkem is not null)
+                {
+                    SafeDisconnect(zkem);
+                }
+            }
         }
-        finally
+
+        if (allPunches.Count == 0 && errors.Count > 0)
         {
-            SafeDisconnect(zkem);
+            throw new InvalidOperationException(
+                "No se pudo obtener marcas de ningun dispositivo. " + string.Join(" | ", errors));
         }
+
+        var dedupedPunches = allPunches
+            .GroupBy(p => (p.UserId, p.CheckTime, p.InOutMode))
+            .Select(g => g.First())
+            .OrderBy(p => p.UserId)
+            .ThenBy(p => p.CheckTime)
+            .ToList();
+
+        if (userId.HasValue)
+        {
+            dedupedPunches = dedupedPunches.Where(p => p.UserId == userId.Value).ToList();
+        }
+
+        return Task.FromResult<IReadOnlyList<PunchRecord>>(dedupedPunches);
     }
 
     public Task<IReadOnlyList<EmployeeInfo>> GetEmployeesAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var zkem = Connect();
-        try
+        var devices = _options.GetDevices();
+        var employees = new List<EmployeeInfo>();
+        var errors = new List<string>();
+
+        foreach (var device in devices)
         {
-            var employees = ReadEmployees(zkem);
-            return Task.FromResult<IReadOnlyList<EmployeeInfo>>(employees);
+            cancellationToken.ThrowIfCancellationRequested();
+            object? zkem = null;
+            try
+            {
+                zkem = Connect(device);
+                employees.AddRange(ReadEmployees(zkem, device.MachineNumber));
+            }
+            catch (Exception ex)
+            {
+                var label = string.IsNullOrWhiteSpace(device.Label) ? device.Ip : device.Label;
+                errors.Add($"{label} ({device.Ip}:{device.Port}): {ex.Message}");
+            }
+            finally
+            {
+                if (zkem is not null)
+                {
+                    SafeDisconnect(zkem);
+                }
+            }
         }
-        finally
+
+        if (employees.Count == 0 && errors.Count > 0)
         {
-            SafeDisconnect(zkem);
+            throw new InvalidOperationException(
+                "No se pudo leer catalogo de ningun dispositivo. " + string.Join(" | ", errors));
         }
+
+        var deduped = employees
+            .GroupBy(e => e.UserId)
+            .Select(g => g.First())
+            .OrderBy(e => e.UserId)
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<EmployeeInfo>>(deduped);
     }
 
     public Task<(bool Success, string Message)> TryUpdateEmployeeNameAsync(int userId, string newName, CancellationToken cancellationToken = default)
@@ -68,11 +138,12 @@ public sealed class ZkTecoDirectAttendanceDataSource : IAttendanceDataSource
             return Task.FromResult((false, "El nombre no puede ir vacío."));
         }
 
-        var zkem = Connect();
+        var primaryDevice = _options.GetPrimaryDevice();
+        var zkem = Connect(primaryDevice);
         try
         {
             dynamic sdk = zkem;
-            var machine = _options.MachineNumber;
+            var machine = primaryDevice.MachineNumber;
             var enroll = userId.ToString();
 
             try
@@ -120,7 +191,8 @@ public sealed class ZkTecoDirectAttendanceDataSource : IAttendanceDataSource
             return Task.FromResult((false, "USERID inválido para consultar foto."));
         }
 
-        var zkem = Connect();
+        var primaryDevice = _options.GetPrimaryDevice();
+        var zkem = Connect(primaryDevice);
         try
         {
             var methods = zkem.GetType()
@@ -162,11 +234,12 @@ public sealed class ZkTecoDirectAttendanceDataSource : IAttendanceDataSource
             return Task.FromResult((false, (byte[]?)null, (string?)null, "USERID inválido para consultar foto."));
         }
 
-        var zkem = Connect();
+        var primaryDevice = _options.GetPrimaryDevice();
+        var zkem = Connect(primaryDevice);
         try
         {
             dynamic sdk = zkem;
-            var machine = _options.MachineNumber;
+            var machine = primaryDevice.MachineNumber;
             var enroll = userId.ToString();
 
             string? payload = null;
@@ -214,11 +287,12 @@ public sealed class ZkTecoDirectAttendanceDataSource : IAttendanceDataSource
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var zkem = Connect();
+        var primaryDevice = _options.GetPrimaryDevice();
+        var zkem = Connect(primaryDevice);
         try
         {
             dynamic sdk = zkem;
-            var machine = _options.MachineNumber;
+            var machine = primaryDevice.MachineNumber;
             var now = DateTime.Now;
 
             try
@@ -264,7 +338,7 @@ public sealed class ZkTecoDirectAttendanceDataSource : IAttendanceDataSource
         object zkem;
         try
         {
-            zkem = Connect();
+            zkem = Connect(_options.GetPrimaryDevice());
         }
         catch (Exception ex)
         {
@@ -273,7 +347,7 @@ public sealed class ZkTecoDirectAttendanceDataSource : IAttendanceDataSource
 
         try
         {
-            var machine = _options.MachineNumber;
+            var machine = _options.GetPrimaryDevice().MachineNumber;
 
             DateTime? deviceTime = null;
             var timeDetail = string.Empty;
@@ -285,7 +359,7 @@ public sealed class ZkTecoDirectAttendanceDataSource : IAttendanceDataSource
             int? deviceUsers = null;
             try
             {
-                deviceUsers = ReadEmployees(zkem).Count;
+                deviceUsers = ReadEmployees(zkem, machine).Count;
             }
             catch
             {
@@ -327,11 +401,12 @@ public sealed class ZkTecoDirectAttendanceDataSource : IAttendanceDataSource
             return Task.FromResult((false, "USERID inválido para eliminar."));
         }
 
-        var zkem = Connect();
+        var primaryDevice = _options.GetPrimaryDevice();
+        var zkem = Connect(primaryDevice);
         try
         {
             dynamic sdk = zkem;
-            var machine = _options.MachineNumber;
+            var machine = primaryDevice.MachineNumber;
             var enroll = userId.ToString();
 
             try
@@ -370,8 +445,26 @@ public sealed class ZkTecoDirectAttendanceDataSource : IAttendanceDataSource
         }
     }
 
-    private object Connect()
+    public bool IsCurrentProcessAuthorizedForDirectDevice()
     {
+        if (!_options.EnforceSyncAgentOnly)
+        {
+            return true;
+        }
+
+        return _options.IsCurrentProcessAuthorized();
+    }
+
+    public string BuildDirectAccessBlockedMessage(string operation = "Connect")
+    {
+        var primaryDevice = _options.GetPrimaryDevice();
+        return BuildGuardMessage(operation, primaryDevice);
+    }
+
+    private object Connect(DirectDeviceEndpointOptions device)
+    {
+        GuardDirectAccessOrThrow("Connect", device);
+
         var type = Type.GetTypeFromProgID("zkemkeeper.CZKEM")
                    ?? Type.GetTypeFromProgID("zkemkeeper.ZKEM")
                    ?? Type.GetTypeFromProgID("zkemkeeper.ZKEM.1");
@@ -385,11 +478,11 @@ public sealed class ZkTecoDirectAttendanceDataSource : IAttendanceDataSource
 
         try
         {
-            if (_options.CommKey > 0)
+            if (device.CommKey > 0)
             {
                 try
                 {
-                    zkem.SetCommPassword(_options.CommKey);
+                    zkem.SetCommPassword(device.CommKey);
                 }
                 catch
                 {
@@ -397,10 +490,10 @@ public sealed class ZkTecoDirectAttendanceDataSource : IAttendanceDataSource
                 }
             }
 
-            bool connected = zkem.Connect_Net(_options.Ip, _options.Port);
+            bool connected = zkem.Connect_Net(device.Ip, device.Port);
             if (!connected)
             {
-                throw new InvalidOperationException($"No se pudo conectar al checador {_options.Ip}:{_options.Port} por SDK ZKTeco.");
+                throw new InvalidOperationException($"No se pudo conectar al checador {device.Ip}:{device.Port} por SDK ZKTeco.");
             }
 
             return zkem;
@@ -412,11 +505,55 @@ public sealed class ZkTecoDirectAttendanceDataSource : IAttendanceDataSource
         }
     }
 
-    private List<EmployeeInfo> ReadEmployees(object zkemObj)
+    private void GuardDirectAccessOrThrow(string operation, DirectDeviceEndpointOptions device)
+    {
+        if (IsCurrentProcessAuthorizedForDirectDevice())
+        {
+            return;
+        }
+
+        var message = BuildGuardMessage(operation, device);
+
+        WriteGuardLog(message);
+        throw new InvalidOperationException(message);
+    }
+
+    private string BuildGuardMessage(string operation, DirectDeviceEndpointOptions device)
+    {
+        var entryAssembly = Assembly.GetEntryAssembly()?.GetName().Name ?? "(unknown)";
+        var processName = Process.GetCurrentProcess().ProcessName ?? "(unknown)";
+        var allowed = string.Join(", ", _options.GetAllowedEntryAssemblies());
+        if (string.IsNullOrWhiteSpace(allowed))
+        {
+            allowed = "Checador.SyncAgent";
+        }
+
+        return $"Acceso directo a ZKTeco bloqueado. Solo procesos autorizados pueden conectarse al reloj. Operation={operation}, EntryAssembly={entryAssembly}, Process={processName}, Device={device.Ip}:{device.Port}, Allowed={allowed}.";
+    }
+
+    private static void WriteGuardLog(string message)
+    {
+        try
+        {
+            var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}";
+            var logsDir = Path.Combine(AppContext.BaseDirectory, "logs");
+            Directory.CreateDirectory(logsDir);
+            var logPath = Path.Combine(logsDir, "direct-device-guard.log");
+            lock (GuardLogLock)
+            {
+                File.AppendAllText(logPath, line + Environment.NewLine);
+            }
+        }
+        catch
+        {
+            // Guard log should never break app execution flow.
+        }
+    }
+
+    private List<EmployeeInfo> ReadEmployees(object zkemObj, int machine)
     {
         dynamic zkem = zkemObj;
         var employees = new List<EmployeeInfo>();
-        var machine = _options.MachineNumber;
 
         bool ready;
         try
@@ -468,10 +605,9 @@ public sealed class ZkTecoDirectAttendanceDataSource : IAttendanceDataSource
             .ToList();
     }
 
-    private List<PunchRecord> ReadPunches(object zkemObj, DateTime from, DateTime to, Dictionary<int, string> names)
+    private List<PunchRecord> ReadPunches(object zkemObj, int machine, DateTime from, DateTime to, Dictionary<int, string> names)
     {
         dynamic zkem = zkemObj;
-        var machine = _options.MachineNumber;
         var list = new List<PunchRecord>();
 
         bool ready;

@@ -1,0 +1,88 @@
+﻿@page
+@model Checador.Web.Pages.Admin.UsersModel
+@{
+    ViewData["Title"] = "Usuarios API";
+}
+
+<div class="page-shell">
+    <section class="page-hero">
+        <div>
+            <p class="hero-kicker">Admin / Seguridad</p>
+            <h1 class="hero-title">Usuarios API</h1>
+            <p class="hero-description">Consulta de cuentas locales, roles y estado de acceso.</p>
+        </div>
+        <div class="hero-actions">
+            <a asp-page="/Admin/Employees" class="btn btn-outline-secondary">Volver a empleados</a>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger" role="alert" aria-live="assertive">@Model.ErrorMessage</div>
+    }
+
+    <section class="table-shell">
+        <div class="table-toolbar">
+            <div class="table-toolbar-meta">
+                <h2 class="table-toolbar-title">Listado de usuarios</h2>
+                <p class="table-toolbar-subtitle">Vista read-only para auditoria de accesos y estados de contraseña.</p>
+            </div>
+            <div class="table-toolbar-actions">
+                <span class="table-badge table-badge-info">@Model.Users.Count cuentas</span>
+            </div>
+        </div>
+
+        @if (Model.Users.Count > 0)
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-striped table-grid mb-0">
+                    <thead>
+                        <tr>
+                            <th>User ID</th>
+                            <th>Username</th>
+                            <th>Roles</th>
+                            <th>Activo</th>
+                            <th>Cambio pass</th>
+                            <th>Ultimo login</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var user in Model.Users)
+                    {
+                        var rolesText = string.Join(", ", user.Roles);
+                        var hasAdminRole = user.Roles.Any(r => string.Equals(r, "admin", StringComparison.OrdinalIgnoreCase));
+
+                        <tr>
+                            <td>@user.UserId</td>
+                            <td>@user.Username</td>
+                            <td>
+                                <span class="table-badge @(hasAdminRole ? "table-badge-warn" : "table-badge-info")">@rolesText</span>
+                            </td>
+                            <td>
+                                <span class="table-badge @(user.IsActive ? "table-badge-success" : "table-badge-muted")">
+                                    @(user.IsActive ? "Si" : "No")
+                                </span>
+                            </td>
+                            <td>
+                                <span class="table-badge @(user.MustChangePassword ? "table-badge-warn" : "table-badge-success")">
+                                    @(user.MustChangePassword ? "Pendiente" : "OK")
+                                </span>
+                            </td>
+                            <td>@(user.LastLoginAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "-")</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">USR</div>
+                <p class="empty-state-title">Sin usuarios para mostrar</p>
+                <p class="empty-state-copy">No se encontraron cuentas en la API para esta consulta.</p>
+            </div>
+        }
+    </section>
+</div>
+

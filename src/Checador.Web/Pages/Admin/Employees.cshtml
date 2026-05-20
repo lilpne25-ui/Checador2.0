@@ -1,0 +1,104 @@
+﻿@page
+@model Checador.Web.Pages.Admin.EmployeesModel
+@using Checador.Web.Security
+@{
+    ViewData["Title"] = "Empleados";
+    var canAccessRestrictedModules = SupervisorModuleAccess.CanAccessRestrictedModules(User);
+}
+
+<div class="page-shell">
+    <section class="page-hero">
+        <div>
+            <p class="hero-kicker">Admin / Personal</p>
+            <h1 class="hero-title">Administracion de empleados</h1>
+            <p class="hero-description">Gestion central de datos operativos, reasignacion por rango y acciones administrativas.</p>
+        </div>
+        <div class="admin-toolbar">
+            <a asp-page="/Admin/Schedules" class="btn btn-sm btn-outline-secondary">Horarios</a>
+            @if (canAccessRestrictedModules)
+            {
+                <a asp-page="/Admin/Reassign" class="btn btn-sm btn-outline-warning">Cambio por rango</a>
+                <a asp-page="/Admin/Pervasive" class="btn btn-sm btn-outline-danger">Pervasive</a>
+                <a asp-page="/Admin/ManualPunch" class="btn btn-sm btn-outline-primary">Alta manual</a>
+            }
+            <a asp-page="/Admin/Reports" class="btn btn-sm btn-outline-primary">Reportes</a>
+            <a asp-page="/Admin/Users" class="btn btn-sm btn-outline-secondary">Usuarios API</a>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert alert-warning" role="alert" aria-live="assertive">@Model.ErrorMessage</div>
+    }
+
+    <section class="table-shell">
+        <div class="table-toolbar">
+            <div class="table-toolbar-meta">
+                <h2 class="table-toolbar-title">Listado de empleados</h2>
+                <p class="table-toolbar-subtitle">Panel maestro para editar datos y navegar a acciones administrativas.</p>
+            </div>
+            <div class="table-toolbar-actions">
+                <span class="table-badge table-badge-info">@Model.Employees.Count empleados</span>
+                <a asp-page="/Admin/Schedules" class="btn btn-sm btn-outline-secondary">Horarios</a>
+                @if (canAccessRestrictedModules)
+                {
+                    <a asp-page="/Admin/Reassign" class="btn btn-sm btn-outline-warning">Cambio por rango</a>
+                    <a asp-page="/Admin/ManualPunch" class="btn btn-sm btn-outline-primary">Alta manual</a>
+                }
+            </div>
+        </div>
+
+        @if (Model.Employees.Count > 0)
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-striped align-middle table-grid employee-table mb-0">
+                    <thead>
+                        <tr>
+                            <th class="col-id">User ID</th>
+                            <th class="col-name">Nombre</th>
+                            <th class="col-dept">Departamento</th>
+                            <th class="col-position">Puesto</th>
+                            <th class="col-shift">Turno Pervasive</th>
+                            <th class="col-schedule">Horario</th>
+                            <th class="col-ot">OT</th>
+                            <th class="col-actions text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var employee in Model.Employees)
+                    {
+                        <tr>
+                            <td class="cell-id">@employee.UserId</td>
+                            <td class="cell-primary">@employee.EmployeeName</td>
+                            <td class="cell-muted">@((employee.Department ?? "-").ToLowerInvariant())</td>
+                            <td class="cell-muted">@((employee.Position ?? "-").ToLowerInvariant())</td>
+                            <td class="cell-center">@((employee.PervasiveShift ?? "-").ToLowerInvariant())</td>
+                            <td><span class="table-badge table-badge-muted">@(employee.WorkScheduleCode?.ToString() ?? "-")</span></td>
+                            <td>
+                                <span class="table-badge @(employee.OvertimeAuthorized ? "table-badge-success" : "table-badge-warn")">
+                                    @(employee.OvertimeAuthorized ? "Si" : "No")
+                                </span>
+                            </td>
+                            <td class="cell-actions">
+                                <div class="table-action-group justify-content-end">
+                                    <a asp-page="/Admin/EmployeeEdit" asp-route-userId="@employee.UserId" class="btn btn-sm btn-outline-primary">Editar</a>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="empty-state">
+                <div class="empty-state-icon">EMP</div>
+                <p class="empty-state-title">No hay empleados cargados</p>
+                <p class="empty-state-copy">Verifica la sincronizacion SQL para poblar este listado.</p>
+            </div>
+        }
+    </section>
+</div>
+
+

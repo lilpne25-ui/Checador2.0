@@ -1,0 +1,160 @@
+@using Checador.Web.FeatureFlags
+@using Checador.Web.Security
+@inject WebModuleFeatureFlags ModuleFlags
+@{
+    var currentPath = Context?.Request.Path.Value ?? string.Empty;
+    var isAuthPage = currentPath.StartsWith("/Login", StringComparison.OrdinalIgnoreCase)
+        || currentPath.StartsWith("/ChangePassword", StringComparison.OrdinalIgnoreCase);
+    var roleNames = User?.Claims
+        .Where(c => c.Type == System.Security.Claims.ClaimTypes.Role)
+        .Select(c => c.Value)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray() ?? Array.Empty<string>();
+    var roleLabel = roleNames.Length == 0 ? "Sin rol" : string.Join(", ", roleNames);
+    var userName = User?.Identity?.Name;
+    var userInitial = string.IsNullOrWhiteSpace(userName) ? "U" : userName[..1].ToUpperInvariant();
+    var canAccessRestrictedModules = SupervisorModuleAccess.CanAccessRestrictedModules(User);
+    var mainContainerClass = string.Equals(ViewData["LayoutMode"] as string, "Wide", StringComparison.OrdinalIgnoreCase)
+        ? "app-container app-container-wide"
+        : "app-container";
+
+    bool IsActive(params string[] pathPrefixes)
+    {
+        foreach (var pathPrefix in pathPrefixes)
+        {
+            if (pathPrefix == "/" && (currentPath == "/" || currentPath.StartsWith("/Index", StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            if (pathPrefix != "/" && currentPath.StartsWith(pathPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    string ActiveClass(params string[] pathPrefixes) => IsActive(pathPrefixes) ? "is-active" : string.Empty;
+    string? CurrentPage(params string[] pathPrefixes) => IsActive(pathPrefixes) ? "page" : null;
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Checador Web</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/Checador.Web.styles.css" asp-append-version="true" />
+</head>
+<body class="@(isAuthPage ? "auth-page" : "app-page")">
+    <a class="skip-link" href="#main-content">Saltar al contenido principal</a>
+
+    <div class="app-shell">
+        @if (!isAuthPage)
+        {
+            <header class="app-header">
+                <div class="app-header-main">
+                    <a class="app-brand" asp-area="" asp-page="/Index" aria-label="Checador Web inicio">
+                        <span class="app-brand-mark" aria-hidden="true">CH</span>
+                        <span class="app-brand-copy">
+                            <span class="app-brand-title">Checador Web</span>
+                            <span class="app-brand-subtitle">LAN interno</span>
+                        </span>
+                    </a>
+
+                    <div class="app-header-actions">
+                        @if (User?.Identity?.IsAuthenticated == true)
+                        {
+                            <div class="app-user-chip" aria-label="Usuario actual">
+                                <span class="app-user-avatar" aria-hidden="true">@userInitial</span>
+                                <span class="app-user-meta">
+                                    <span class="app-user-name">@userName</span>
+                                    <span class="app-user-role">@roleLabel</span>
+                                </span>
+                            </div>
+                            <a class="btn btn-sm btn-secondary-soft" asp-page="/ChangePassword">Clave</a>
+                            <a class="btn btn-sm btn-secondary-soft" href="/logout">Salir</a>
+                        }
+                        else
+                        {
+                            <a class="btn btn-sm btn-primary" asp-page="/Login">Acceso</a>
+                        }
+                    </div>
+                </div>
+
+                <nav class="app-nav" aria-label="Navegacion principal">
+                    <div class="app-nav-group">
+                        <span class="app-nav-label">Consulta</span>
+                        <a class="app-nav-link @ActiveClass("/")" aria-current="@CurrentPage("/")" asp-page="/Index">Inicio</a>
+                        @if (canAccessRestrictedModules)
+                        {
+                            <a class="app-nav-link @ActiveClass("/Kpi")" aria-current="@CurrentPage("/Kpi")" asp-page="/Kpi">KPI</a>
+                        }
+                        <a class="app-nav-link @ActiveClass("/PreviewEmployee")" aria-current="@CurrentPage("/PreviewEmployee")" asp-page="/PreviewEmployee">Por empleado</a>
+                        <a class="app-nav-link @ActiveClass("/PreviewAll")" aria-current="@CurrentPage("/PreviewAll")" asp-page="/PreviewAll">Masivo</a>
+                    </div>
+
+                    @if (User?.IsInRole("admin") == true)
+                    {
+                        <div class="app-nav-group">
+                            <span class="app-nav-label">Administracion</span>
+                            @if (ModuleFlags.EnableOps && canAccessRestrictedModules)
+                            {
+                                <a class="app-nav-link @ActiveClass("/Ops")" aria-current="@CurrentPage("/Ops")" asp-page="/Ops/Index">Estado</a>
+                            }
+                            @if (ModuleFlags.EnableEmployees)
+                            {
+                                <a class="app-nav-link @ActiveClass("/Admin/Employees", "/Admin/EmployeeEdit")" aria-current="@CurrentPage("/Admin/Employees", "/Admin/EmployeeEdit")" asp-page="/Admin/Employees">Empleados</a>
+                            }
+                            @if (ModuleFlags.EnableSchedules)
+                            {
+                                <a class="app-nav-link @ActiveClass("/Admin/Schedules")" aria-current="@CurrentPage("/Admin/Schedules")" asp-page="/Admin/Schedules">Horarios</a>
+                            }
+                            @if (ModuleFlags.EnableReassign && canAccessRestrictedModules)
+                            {
+                                <a class="app-nav-link @ActiveClass("/Admin/Reassign")" aria-current="@CurrentPage("/Admin/Reassign")" asp-page="/Admin/Reassign">Rango</a>
+                            }
+                            @if (ModuleFlags.EnableManualPunch && canAccessRestrictedModules)
+                            {
+                                <a class="app-nav-link @ActiveClass("/Admin/ManualPunch")" aria-current="@CurrentPage("/Admin/ManualPunch")" asp-page="/Admin/ManualPunch">Alta manual</a>
+                            }
+                            @if (ModuleFlags.EnableReports)
+                            {
+                                <a class="app-nav-link @ActiveClass("/Admin/Reports")" aria-current="@CurrentPage("/Admin/Reports")" asp-page="/Admin/Reports">Reportes</a>
+                            }
+                            @if (ModuleFlags.EnablePervasive && canAccessRestrictedModules)
+                            {
+                                <a class="app-nav-link @ActiveClass("/Admin/Pervasive")" aria-current="@CurrentPage("/Admin/Pervasive")" asp-page="/Admin/Pervasive">Pervasive</a>
+                            }
+                            @if (ModuleFlags.EnableAdminUsers)
+                            {
+                                <a class="app-nav-link @ActiveClass("/Admin/Users")" aria-current="@CurrentPage("/Admin/Users")" asp-page="/Admin/Users">Usuarios</a>
+                            }
+                        </div>
+                    }
+                </nav>
+            </header>
+        }
+
+        <main role="main" class="app-main" id="main-content" tabindex="-1">
+            <div class="@mainContainerClass">
+                @RenderBody()
+            </div>
+        </main>
+
+        <footer class="app-footer">
+            <div class="app-container">
+                <span>&copy; 2026 - Checador Web LAN</span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

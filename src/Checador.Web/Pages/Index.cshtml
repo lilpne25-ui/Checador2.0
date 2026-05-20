@@ -1,0 +1,122 @@
+@page
+@model Checador.Web.Pages.IndexModel
+@using Checador.Web.Security
+@{
+    ViewData["Title"] = "Inicio";
+
+    var apiOnline = Model.SyncStatus is not null;
+    var syncStatus = Model.SyncStatus?.LastStatus;
+    var syncOk = string.Equals(syncStatus, "ok", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(syncStatus, "success", StringComparison.OrdinalIgnoreCase);
+    var liveOnline = Model.LiveStatus?.DeviceConnected == true;
+    var canAccessRestrictedModules = SupervisorModuleAccess.CanAccessRestrictedModules(User);
+}
+
+<div class="page-shell">
+    <section class="page-hero page-hero-compact">
+        <div>
+            <p class="hero-kicker">Checador 2.0 / LAN</p>
+            <h1 class="hero-title">Panel operativo</h1>
+            <p class="hero-description">Consulta diaria de asistencia, reportes y estado de sincronizacion.</p>
+        </div>
+        <div class="hero-actions">
+            @if (canAccessRestrictedModules)
+            {
+                <a class="btn btn-primary" asp-page="/Kpi">Ver KPI</a>
+            }
+            <a class="btn btn-secondary-soft" asp-page="/PreviewAll">Preview masivo</a>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(Model.DashboardMessage))
+    {
+        <div class="alert alert-warning" role="alert" aria-live="assertive">@Model.DashboardMessage</div>
+    }
+
+    <section class="ops-strip" aria-label="Resumen operativo">
+        <article class="ops-strip-item">
+            <span class="ops-strip-label">API</span>
+            <strong class="ops-strip-value">@(apiOnline ? "Online" : "Sin lectura")</strong>
+            <span class="status-pill @(apiOnline ? "status-good" : "status-warn")">@(apiOnline ? "Disponible" : "Pendiente")</span>
+        </article>
+        <article class="ops-strip-item">
+            <span class="ops-strip-label">Sync SQL</span>
+            <strong class="ops-strip-value">@(syncOk ? "OK" : (string.IsNullOrWhiteSpace(syncStatus) ? "N/A" : syncStatus))</strong>
+            <span class="ops-strip-note">Ultimo: @(Model.SyncStatus?.LastSync?.ToString("dd/MM HH:mm") ?? "N/A")</span>
+        </article>
+        <article class="ops-strip-item">
+            <span class="ops-strip-label">Empleados</span>
+            <strong class="ops-strip-value">@(Model.SyncStatus?.TotalEmployees.ToString() ?? "N/A")</strong>
+            <span class="ops-strip-note">SQL operativo</span>
+        </article>
+        <article class="ops-strip-item">
+            <span class="ops-strip-label">Ultima marca</span>
+            <strong class="ops-strip-value">@(Model.SyncStatus?.LastPunch?.ToString("dd/MM HH:mm") ?? "N/A")</strong>
+            <span class="ops-strip-note">Reloj: @(liveOnline ? "online" : "sin lectura")</span>
+        </article>
+    </section>
+
+    <section class="quick-actions-row" aria-label="Accesos rapidos">
+        @if (canAccessRestrictedModules)
+        {
+            <a class="quick-action-link" asp-page="/Kpi">
+                <span>KPI</span>
+                <small>Resumen por rango</small>
+            </a>
+        }
+        <a class="quick-action-link" asp-page="/PreviewEmployee">
+            <span>Empleado</span>
+            <small>Detalle individual</small>
+        </a>
+        <a class="quick-action-link" asp-page="/PreviewAll">
+            <span>Masivo</span>
+            <small>Plantilla completa</small>
+        </a>
+        @if (User?.IsInRole("admin") == true)
+        {
+            <a class="quick-action-link" asp-page="/Admin/Reports">
+                <span>Reportes</span>
+                <small>Excel / PDF / OT</small>
+            </a>
+            <a class="quick-action-link" asp-page="/Admin/Employees">
+                <span>Empleados</span>
+                <small>Catalogo SQL</small>
+            </a>
+            @if (canAccessRestrictedModules)
+            {
+                <a class="quick-action-link" asp-page="/Ops/Index">
+                    <span>Operacion</span>
+                    <small>Sync y estado</small>
+                </a>
+            }
+        }
+    </section>
+
+    @if (Model.MustChangePassword)
+    {
+        <div class="alert alert-warning" role="alert" aria-live="assertive">
+            Debes cambiar tu password antes de consultar reportes.
+            <a class="alert-link" asp-page="/ChangePassword">Ir a cambio de password</a>
+        </div>
+    }
+
+    @if (Model.SyncStatus is not null)
+    {
+        <section class="section-card low-card">
+            <header class="section-head">
+                <div>
+                    <h2 class="section-title">Estado reciente</h2>
+                    <p class="section-subtitle">Lectura directa de la API interna.</p>
+                </div>
+                <span class="status-pill @(syncOk ? "status-good" : "status-warn")">@(syncOk ? "Sincronizado" : "Revisar")</span>
+            </header>
+            <div class="section-body">
+                <dl class="kv-grid">
+                    <dt>Marcas SQL</dt><dd>@Model.SyncStatus.TotalPunches</dd>
+                    <dt>Ultimo mensaje</dt><dd>@(string.IsNullOrWhiteSpace(Model.SyncStatus.LastMessage) ? "Sin detalle." : Model.SyncStatus.LastMessage)</dd>
+                    <dt>Reloj</dt><dd>@(liveOnline ? "Conectado" : "Sin lectura o desconectado")</dd>
+                </dl>
+            </div>
+        </section>
+    }
+</div>

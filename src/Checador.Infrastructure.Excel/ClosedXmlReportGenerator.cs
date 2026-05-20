@@ -5,7 +5,6 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
 namespace Checador.Infrastructure.Excel;
@@ -182,13 +181,21 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
 
             WriteDateIfMapped(ws, row, columns, "fecha", day.Date.ToDateTime(TimeOnly.MinValue), "dd-MM-yyyy");
             var sinReg = day.Estatus == "SIN_REGISTRO";
+            var useFormulaFriendlyLayout =
+                columns.ContainsKey("horasextradobles")
+                || columns.ContainsKey("horasextratriples")
+                || columns.ContainsKey("horaspagables");
+            var emptyFallback = useFormulaFriendlyLayout ? string.Empty : "SIN REG";
 
-            WriteTextIfMapped(ws, row, columns, "horaentrada", sinReg ? "SIN REG" : day.Entrada?.ToString("HH:mm") ?? "SIN REG");
-            WriteTextIfMapped(ws, row, columns, "salidacomida", sinReg ? "SIN REG" : day.SalidaComida?.ToString("HH:mm") ?? "SIN REG");
-            WriteTextIfMapped(ws, row, columns, "entradacomida", sinReg ? "SIN REG" : day.EntradaComida?.ToString("HH:mm") ?? "SIN REG");
-            WriteTextIfMapped(ws, row, columns, "horasalida", sinReg ? "SIN REG" : day.Salida?.ToString("HH:mm") ?? "SIN REG");
-            WriteTextIfMapped(ws, row, columns, "totalhoras", sinReg ? "SIN REG" : day.HorasTrabajadas?.ToString("0.00") ?? "SIN REG");
-            WriteTextIfMapped(ws, row, columns, "horasextra", sinReg ? "SIN REG" : day.HorasExtra?.ToString("0.00") ?? "SIN REG");
+            WriteTextIfMapped(ws, row, columns, "horaentrada", sinReg ? emptyFallback : day.Entrada?.ToString("HH:mm") ?? emptyFallback);
+            WriteTextIfMapped(ws, row, columns, "salidacomida", sinReg ? emptyFallback : day.SalidaComida?.ToString("HH:mm") ?? emptyFallback);
+            WriteTextIfMapped(ws, row, columns, "entradacomida", sinReg ? emptyFallback : day.EntradaComida?.ToString("HH:mm") ?? emptyFallback);
+            WriteTextIfMapped(ws, row, columns, "horasalida", sinReg ? emptyFallback : day.Salida?.ToString("HH:mm") ?? emptyFallback);
+            WriteTextIfMapped(ws, row, columns, "totalhoras", sinReg ? emptyFallback : day.HorasTrabajadas?.ToString("0.00", CultureInfo.InvariantCulture) ?? emptyFallback);
+            WriteTextIfMapped(ws, row, columns, "horasextra", sinReg ? emptyFallback : day.HorasExtra?.ToString("0.00", CultureInfo.InvariantCulture) ?? emptyFallback);
+            WriteDecimalIfMapped(ws, row, columns, "horasextradobles", sinReg ? 0m : day.HorasExtra ?? 0m);
+            WriteDecimalIfMapped(ws, row, columns, "horasextratriples", 0m);
+            WriteTextIfMapped(ws, row, columns, "observaciones", sinReg ? "SIN_REGISTRO" : (day.Observaciones ?? string.Empty));
         }
 
         WriteWeeklyTotalsInTemplate(ws, used, days);
@@ -203,7 +210,7 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
 
         foreach (var cell in used.CellsUsed())
         {
-            var text = Normalize(cell.GetString());
+            var text = Normalize(cell.SafeGetString());
 
             if (text.Contains("totaldehoraslaboradasporsemana") ||
                 text.Contains("totaldehoraslaboradasenlasemana") ||
@@ -224,8 +231,9 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
     {
         foreach (var cell in used.CellsUsed())
         {
-            var norm = Normalize(cell.GetString());
-            if (!norm.Contains("nombredeltrabajador"))
+            var norm = Normalize(cell.SafeGetString());
+            if (!norm.Contains("nombredeltrabajador")
+                && !norm.Contains("nombredelempleado"))
             {
                 continue;
             }
@@ -244,10 +252,10 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
         }
 
         WriteValueNextToLabel(ws, used, new[] { "empresa", "razonsocial" }, templateContext.Company);
-        WriteValueNextToLabel(ws, used, new[] { "area", "departamento" }, templateContext.Area);
+        WriteValueNextToLabel(ws, used, new[] { "area", "departamento", "depto" }, templateContext.Area);
         WriteValueNextToLabel(ws, used, new[] { "puesto", "cargo" }, templateContext.Position);
-        WriteValueNextToLabel(ws, used, new[] { "horario" }, templateContext.WorkScheduleDisplay);
-        WriteValueNextToLabel(ws, used, new[] { "tipodejornada" }, templateContext.WorkShiftType);
+        WriteValueNextToLabel(ws, used, new[] { "horario", "turno" }, templateContext.WorkScheduleDisplay);
+        WriteValueNextToLabel(ws, used, new[] { "tipodejornada", "jornada" }, templateContext.WorkShiftType);
         MarkShiftTypeBestEffort(ws, used, templateContext.WorkShiftType);
     }
 
@@ -256,7 +264,7 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
         var signatureNameCell = used.CellsUsed()
             .Where(c =>
             {
-                var normalized = Normalize(c.GetString());
+                var normalized = Normalize(c.SafeGetString());
                 return normalized.Contains("nombreyfirmadeltrabajador") ||
                        normalized.Contains("nombrefirmadeltrabajador");
             })
@@ -267,7 +275,7 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
         if (signatureNameCell is null)
         {
             signatureNameCell = used.CellsUsed()
-                .Where(c => Normalize(c.GetString()).Contains("nombredeltrabajador"))
+                .Where(c => Normalize(c.SafeGetString()).Contains("nombredeltrabajador"))
                 .OrderByDescending(c => c.Address.RowNumber)
                 .ThenBy(c => c.Address.ColumnNumber)
                 .FirstOrDefault();
@@ -275,7 +283,7 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
 
         if (signatureNameCell is not null)
         {
-            var raw = signatureNameCell.GetString();
+            var raw = signatureNameCell.SafeGetString();
             var nameWritten = TryWriteNameInsideDeclarationLabel(signatureNameCell, raw, employeeName);
             if (!nameWritten)
             {
@@ -295,7 +303,7 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
             .Where(c => c.Address.RowNumber >= signatureRow)
             .FirstOrDefault(c =>
             {
-                var raw = c.GetString();
+                var raw = c.SafeGetString();
                 var norm = Normalize(raw);
                 return norm.Contains("fecha") && (raw.Contains("_") || raw.Contains("/") || raw.Contains(":"));
             })
@@ -303,11 +311,11 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
                 .Where(c => c.Address.RowNumber >= signatureRow)
                 .OrderByDescending(c => c.Address.RowNumber)
                 .ThenBy(c => c.Address.ColumnNumber)
-                .FirstOrDefault(c => Normalize(c.GetString()).Contains("fecha"));
+                .FirstOrDefault(c => Normalize(c.SafeGetString()).Contains("fecha"));
 
         if (signatureDateCell is not null)
         {
-            var rawDateLabel = signatureDateCell.GetString();
+            var rawDateLabel = signatureDateCell.SafeGetString();
             signatureDateCell.Value = BuildLabeledValue(rawDateLabel, "Fecha", reportDate.ToDateTime(TimeOnly.MinValue).ToString("dd-MM-yyyy"));
         }
     }
@@ -334,7 +342,7 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
             for (var col = firstCol; col <= lastCol; col++)
             {
                 var cell = ws.Cell(row, col);
-                if (!string.IsNullOrWhiteSpace(cell.GetString()))
+                if (!string.IsNullOrWhiteSpace(cell.SafeGetString()))
                 {
                     continue;
                 }
@@ -343,7 +351,7 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
                 return true;
             }
 
-            // Si no hay espacios vacíos, usamos la última celda de la fila para no modificar la etiqueta.
+            // Si no hay espacios vacios, usamos la ultima celda de la fila para no modificar la etiqueta.
             ws.Cell(row, lastCol).Value = value;
             return true;
         }
@@ -433,7 +441,7 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
 
         foreach (var cell in used.CellsUsed())
         {
-            var norm = Normalize(cell.GetString());
+            var norm = Normalize(cell.SafeGetString());
             if (labelTokens.All(token => !norm.Contains(Normalize(token))))
             {
                 continue;
@@ -458,7 +466,7 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
 
         foreach (var cell in used.CellsUsed())
         {
-            var text = cell.GetString();
+            var text = cell.SafeGetString();
             var norm = Normalize(text);
             if (!norm.Contains(targetToken))
             {
@@ -472,7 +480,7 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
             }
 
             var rightCell = ws.Cell(cell.Address.RowNumber, cell.Address.ColumnNumber + 1);
-            if (string.IsNullOrWhiteSpace(rightCell.GetString()))
+            if (string.IsNullOrWhiteSpace(rightCell.SafeGetString()))
             {
                 rightCell.Value = "X";
                 return;
@@ -484,14 +492,18 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
     {
         foreach (var row in used.Rows())
         {
-            var hasPeriodLabel = row.Cells().Any(c => Normalize(c.GetString()).Contains("periododelasemana"));
+            var hasPeriodLabel = row.Cells().Any(c =>
+            {
+                var text = Normalize(c.SafeGetString());
+                return text.Contains("periododelasemana") || text.Contains("semanadel");
+            });
             if (!hasPeriodLabel)
             {
                 continue;
             }
 
             var placeholders = row.Cells()
-                .Where(c => Normalize(c.GetString()).Contains("ddmmaa"))
+                .Where(c => Normalize(c.SafeGetString()).Contains("ddmmaa"))
                 .ToList();
 
             if (placeholders.Count >= 2)
@@ -501,8 +513,8 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
                 return;
             }
 
-            var delCell = row.Cells().FirstOrDefault(c => Normalize(c.GetString()) == "del");
-            var alCell = row.Cells().FirstOrDefault(c => Normalize(c.GetString()) == "al");
+            var delCell = row.Cells().FirstOrDefault(c => Normalize(c.SafeGetString()) == "del");
+            var alCell = row.Cells().FirstOrDefault(c => Normalize(c.SafeGetString()) == "al");
 
             if (delCell is not null)
             {
@@ -516,6 +528,17 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
                     weekEnd.ToDateTime(TimeOnly.MinValue).ToString("dd-MM-yyyy");
             }
 
+            if (delCell is null && alCell is null)
+            {
+                var weekLabelCell = row.Cells()
+                    .FirstOrDefault(c => Normalize(c.SafeGetString()).Contains("semanadel"));
+                if (weekLabelCell is not null)
+                {
+                    ws.Cell(weekLabelCell.Address.RowNumber, weekLabelCell.Address.ColumnNumber + 1).Value =
+                        $"{weekStart:dd/MM/yyyy} al {weekEnd:dd/MM/yyyy}";
+                }
+            }
+
             return;
         }
     }
@@ -524,7 +547,7 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
     {
         var columns = new Dictionary<string, int>();
 
-        var dayHeaderCell = used.CellsUsed().FirstOrDefault(c => Normalize(c.GetString()) == "dia");
+        var dayHeaderCell = used.CellsUsed().FirstOrDefault(c => Normalize(c.SafeGetString()) == "dia");
         if (dayHeaderCell is null)
         {
             return columns;
@@ -537,7 +560,7 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
 
         foreach (var cell in rowCells)
         {
-            var header = Normalize(cell.GetString());
+            var header = Normalize(cell.SafeGetString());
             if (string.IsNullOrWhiteSpace(header))
             {
                 continue;
@@ -545,12 +568,16 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
 
             if (header == "fecha") columns["fecha"] = cell.Address.ColumnNumber;
             else if (header == "dia") columns["dia"] = cell.Address.ColumnNumber;
-            else if (header.Contains("horadeentrada")) columns["horaentrada"] = cell.Address.ColumnNumber;
-            else if (header.Contains("salidaacomida")) columns["salidacomida"] = cell.Address.ColumnNumber;
-            else if (header.Contains("entradadecomida")) columns["entradacomida"] = cell.Address.ColumnNumber;
-            else if (header.Contains("horadesalida")) columns["horasalida"] = cell.Address.ColumnNumber;
-            else if (header.Contains("totaldehoras")) columns["totalhoras"] = cell.Address.ColumnNumber;
+            else if (header.Contains("horadeentrada") || header.Contains("horaentrada")) columns["horaentrada"] = cell.Address.ColumnNumber;
+            else if (header.Contains("salidaacomida") || header.Contains("salidaacomer")) columns["salidacomida"] = cell.Address.ColumnNumber;
+            else if (header.Contains("entradadecomida") || header.Contains("entradadecomer")) columns["entradacomida"] = cell.Address.ColumnNumber;
+            else if (header.Contains("horadesalida") || header.Contains("horasalida")) columns["horasalida"] = cell.Address.ColumnNumber;
+            else if (header.Contains("totaldehoras") || header.Contains("horastrabajadas")) columns["totalhoras"] = cell.Address.ColumnNumber;
             else if (header.Contains("horasextra")) columns["horasextra"] = cell.Address.ColumnNumber;
+            else if (header.Contains("hedobles")) columns["horasextradobles"] = cell.Address.ColumnNumber;
+            else if (header.Contains("hetriples")) columns["horasextratriples"] = cell.Address.ColumnNumber;
+            else if (header.Contains("horaspagables")) columns["horaspagables"] = cell.Address.ColumnNumber;
+            else if (header.Contains("observaciones")) columns["observaciones"] = cell.Address.ColumnNumber;
         }
 
         return columns;
@@ -566,7 +593,7 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
 
         for (var row = used.RangeAddress.FirstAddress.RowNumber; row <= used.RangeAddress.LastAddress.RowNumber; row++)
         {
-            var text = Normalize(used.Worksheet.Cell(row, dayColumn).GetString());
+            var text = Normalize(used.Worksheet.Cell(row, dayColumn).SafeGetString());
             if (!TryResolveTemplateDayKey(text, out var dayKey))
             {
                 continue;
@@ -656,14 +683,31 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
     private static void WriteDateIfMapped(IXLWorksheet ws, int row, Dictionary<string, int> cols, string key, DateTime value, string format)
     {
         if (!cols.TryGetValue(key, out var col)) return;
-        ws.Cell(row, col).Value = value;
-        ws.Cell(row, col).Style.DateFormat.Format = format;
+        var cell = ws.Cell(row, col);
+        if (CellHasFormula(cell)) return;
+        cell.Value = value;
+        cell.Style.DateFormat.Format = format;
     }
 
     private static void WriteTextIfMapped(IXLWorksheet ws, int row, Dictionary<string, int> cols, string key, string value)
     {
         if (!cols.TryGetValue(key, out var col)) return;
-        ws.Cell(row, col).Value = value;
+        var cell = ws.Cell(row, col);
+        if (CellHasFormula(cell)) return;
+        cell.Value = value;
+    }
+
+    private static void WriteDecimalIfMapped(IXLWorksheet ws, int row, Dictionary<string, int> cols, string key, decimal value)
+    {
+        if (!cols.TryGetValue(key, out var col)) return;
+        var cell = ws.Cell(row, col);
+        if (CellHasFormula(cell)) return;
+        cell.Value = value;
+    }
+
+    private static bool CellHasFormula(IXLCell cell)
+    {
+        return !string.IsNullOrWhiteSpace(cell.FormulaA1);
     }
 
     private static string Normalize(string? value)
@@ -891,30 +935,26 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
                 fs.CopyTo(raw);
                 raw.Position = 0;
 
-                // Las fórmulas compartidas (shared formulas) de la plantilla causan que
+                // Las formulas compartidas (shared formulas) de la plantilla causan que
                 // ClosedXML reescriba las celdas al guardar, ignorando los valores que
-                // se escriben por código. Se eliminan todas las fórmulas del XML del
+                // se escriben por codigo. Se eliminan todas las formulas del XML del
                 // worksheet antes de cargar, para que ClosedXML trate cada celda como
-                // valor puro. Los valores que escribimos luego nunca serán sobreescritos.
+                // valor puro. Los valores que escribimos luego nunca seran sobreescritos.
                 var workbookStream = StripWorksheetFormulas(raw);
-                return new XLWorkbook(workbookStream);
+                var workbook = new XLWorkbook(workbookStream);
+                TemplateWorkbookLoader.NormalizePictures(workbook);
+                return workbook;
             }
             catch (IOException ex)
             {
                 throw new IOException(
-                    $"No se pudo leer la plantilla '{templatePath}'. Cierra el archivo en Excel u otro proceso e inténtalo de nuevo.",
+                    $"No se pudo leer la plantilla '{templatePath}'. Cierra el archivo en Excel u otro proceso e intentalo de nuevo.",
                     ex);
             }
         }
 
         return new XLWorkbook();
     }
-
-    // Patrón para elementos <f .../> y <f ...>...</f> en OOXML worksheet XML.
-    // Se usa para eliminar todas las fórmulas antes de cargar con ClosedXML,
-    // evitando que fórmulas compartidas (shared formulas) sobreescriban valores escritos por código.
-    private static readonly Regex _formulaElementPattern =
-        new(@"<f\b[^>]*/?>(?:[\s\S]*?</f>)?", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static MemoryStream StripWorksheetFormulas(MemoryStream source)
     {
@@ -930,13 +970,22 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
                 using var srcStream = entry.Open();
                 using var dstStream = newEntry.Open();
 
-                // Sólo procesar XMLs de hojas de cálculo
+                // Solo procesar XMLs de hojas de calculo
                 if (entry.FullName.StartsWith("xl/worksheets/", StringComparison.OrdinalIgnoreCase)
                     && entry.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
                 {
                     using var reader = new StreamReader(srcStream, Encoding.UTF8);
                     var xml = reader.ReadToEnd();
-                    xml = _formulaElementPattern.Replace(xml, string.Empty);
+                    xml = StripFormulaElementsFromWorksheetXml(xml);
+                    var bytes = Encoding.UTF8.GetBytes(xml);
+                    dstStream.Write(bytes, 0, bytes.Length);
+                }
+                else if (entry.FullName.StartsWith("xl/drawings/", StringComparison.OrdinalIgnoreCase)
+                    && entry.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+                {
+                    using var reader = new StreamReader(srcStream, Encoding.UTF8);
+                    var xml = reader.ReadToEnd();
+                    xml = TemplateWorkbookLoader.SanitizeDrawingXml(xml);
                     var bytes = Encoding.UTF8.GetBytes(xml);
                     dstStream.Write(bytes, 0, bytes.Length);
                 }
@@ -949,6 +998,104 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
 
         output.Position = 0;
         return output;
+    }
+
+    private static string StripFormulaElementsFromWorksheetXml(string xml)
+    {
+        if (string.IsNullOrWhiteSpace(xml))
+        {
+            return xml;
+        }
+
+        try
+        {
+            var document = XDocument.Parse(xml, System.Xml.Linq.LoadOptions.PreserveWhitespace);
+            var formulas = document.Descendants()
+                .Where(element => element.Name.LocalName == "f")
+                .ToList();
+
+            if (formulas.Count == 0)
+            {
+                return xml;
+            }
+
+            foreach (var formula in formulas)
+            {
+                formula.Remove();
+            }
+
+            return document.Declaration is null
+                ? document.ToString(System.Xml.Linq.SaveOptions.DisableFormatting)
+                : $"{document.Declaration}{Environment.NewLine}{document}";
+        }
+        catch
+        {
+            // Si el XML no se puede parsear, devolvemos el contenido original para no introducir corrupcion.
+            return xml;
+        }
+    }
+
+    private static string SanitizeDrawingObjectNamesXml(string xml)
+    {
+        if (string.IsNullOrWhiteSpace(xml))
+        {
+            return xml;
+        }
+
+        try
+        {
+            var document = XDocument.Parse(xml, System.Xml.Linq.LoadOptions.PreserveWhitespace);
+            var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var changed = false;
+
+            foreach (var element in document.Descendants().Where(x => x.Name.LocalName == "cNvPr"))
+            {
+                var attr = element.Attribute("name");
+                if (attr is null || string.IsNullOrWhiteSpace(attr.Value))
+                {
+                    continue;
+                }
+
+                var fixedName = EnsureExcelObjectNameMax31(attr.Value, usedNames);
+                if (!string.Equals(fixedName, attr.Value, StringComparison.Ordinal))
+                {
+                    attr.Value = fixedName;
+                    changed = true;
+                }
+            }
+
+            return changed
+                ? document.ToString(System.Xml.Linq.SaveOptions.DisableFormatting)
+                : xml;
+        }
+        catch
+        {
+            return xml;
+        }
+    }
+
+    private static string EnsureExcelObjectNameMax31(string rawName, HashSet<string> usedNames)
+    {
+        var trimmed = rawName.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            trimmed = "Imagen";
+        }
+
+        var baseName = trimmed.Length <= 31 ? trimmed : trimmed[..31];
+        var candidate = baseName;
+        var suffix = 1;
+        while (usedNames.Contains(candidate))
+        {
+            var suffixText = $"_{suffix}";
+            var maxBaseLength = Math.Max(1, 31 - suffixText.Length);
+            var shortBase = baseName.Length > maxBaseLength ? baseName[..maxBaseLength] : baseName;
+            candidate = shortBase + suffixText;
+            suffix++;
+        }
+
+        usedNames.Add(candidate);
+        return candidate;
     }
 
     private static void WriteHeaders(IXLWorksheet ws)
@@ -1016,7 +1163,7 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
         var targetCol = Math.Min(col + 1, used.RangeAddress.LastAddress.ColumnNumber);
         var target = ws.Cell(row, targetCol);
 
-        if (!string.IsNullOrWhiteSpace(target.GetString()) && targetCol < used.RangeAddress.LastAddress.ColumnNumber)
+        if (!string.IsNullOrWhiteSpace(target.SafeGetString()) && targetCol < used.RangeAddress.LastAddress.ColumnNumber)
         {
             target = ws.Cell(row, targetCol + 1);
         }
@@ -1043,7 +1190,7 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
             for (var col = firstCol; col <= lastCol; col++)
             {
                 var c = ws.Cell(row, col);
-                var t = Normalize(c.GetString());
+                var t = Normalize(c.SafeGetString());
                 if (t.Contains("hrs") || t.Contains("0000a0000hrs") || t.Contains("0000"))
                 {
                     return c;
@@ -1054,7 +1201,7 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
         for (var col = firstCol; col <= lastCol; col++)
         {
             var c = ws.Cell(row, col);
-            if (string.IsNullOrWhiteSpace(c.GetString()))
+            if (string.IsNullOrWhiteSpace(c.SafeGetString()))
             {
                 return c;
             }
@@ -1117,7 +1264,7 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
 
             workbooksObj = excelApp.Workbooks;
             dynamic workbooks = workbooksObj;
-            workbookObj = workbooks.Open(excelPath, 0, true);
+            workbookObj = OpenExcelWorkbook(workbooksObj, excelPath);
 
             dynamic workbook = workbookObj;
             try
@@ -1149,8 +1296,8 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
                 }
                 catch
                 {
-                    // Si falla la configuración en esta versión de Excel,
-                    // exportamos con la configuración actual para no bloquear al usuario.
+                    // Si falla la configuracion en esta version de Excel,
+                    // exportamos con la configuracion actual para no bloquear al usuario.
                 }
             }
 
@@ -1180,7 +1327,7 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
 
             if (!pdfExported || !File.Exists(pdfPath))
             {
-                throw new InvalidOperationException("Excel no generó el archivo PDF esperado.");
+                throw new InvalidOperationException("Excel no genero el archivo PDF esperado.");
             }
 
             workbook.Close(false);
@@ -1228,8 +1375,8 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
             pageSetupObj = worksheet.PageSetup;
             dynamic pageSetup = pageSetupObj;
 
-            // Evita recorte superior por áreas de impresión que inician debajo de la fila 1
-            // y evita hojas extra al incluir solo contenido real hasta la última celda usada.
+            // Evita recorte superior por areas de impresion que inician debajo de la fila 1
+            // y evita hojas extra al incluir solo contenido real hasta la ultima celda usada.
             var tightBounds = TryGetTightPrintBounds(worksheetObj);
             if (tightBounds is not null)
             {
@@ -1306,6 +1453,33 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
             ReleaseComObject(usedRangeObj);
             ReleaseComObject(pageSetupObj);
         }
+    }
+
+    private static object OpenExcelWorkbook(object workbooksObj, string excelPath)
+    {
+        try
+        {
+            return InvokeExcelOpen(workbooksObj, new object[] { excelPath });
+        }
+        catch
+        {
+            return InvokeExcelOpen(workbooksObj, new object[]
+            {
+                excelPath, 0, false, 5, string.Empty, string.Empty, true, 1,
+                string.Empty, false, false, 0, false, true, 1
+            });
+        }
+    }
+
+    private static object InvokeExcelOpen(object workbooksObj, object[] args)
+    {
+        return workbooksObj.GetType().InvokeMember(
+            "Open",
+            System.Reflection.BindingFlags.InvokeMethod,
+            binder: null,
+            target: workbooksObj,
+            args: args)
+            ?? throw new InvalidOperationException("Excel no pudo abrir el archivo temporal para exportar PDF.");
     }
 
     private static PdfPrintBounds? TryGetTightPrintBounds(object worksheetObj)
@@ -1462,3 +1636,4 @@ public sealed class ClosedXmlReportGenerator : IReportGenerator
         }
     }
 }
+

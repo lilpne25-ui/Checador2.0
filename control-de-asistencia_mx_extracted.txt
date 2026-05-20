@@ -1,0 +1,303 @@
+===PAGE 1===
+Módulo de
+Control de
+AsistenciaDATA SHEET  MÓDULO DE CONTROL DE ASISTENCIA
+Casos de Uso:
+Cumple con todas las exigencias legales.
+Planifica y asigna los horarios de tus colaboradores.Gestiona con data confiable las horas extras, 
+retardos o inasistencias,/gid00001/gid00040/gid00032/gid00031/gid00036/gid00028/gid00041/gid00047/gid00032/gid00001/gid00028/gid00039/gid00032/gid00045/gid00047/gid00028/gid00046/gid00001/gid00052/gid00001
+/gid00045/gid00032/gid00043/gid00042/gid00045/gid00047/gid00032/gid00046/gid01141/gid00001
+Emite y envía los comprobantes de asistencia
+de forma automática a tus colaboradores,
+/gid00046/gid00036/gid00041/gid00001/gid00047/gid00045/gid00028/gid00029/gid00028/gid00037/gid00042/gid00001/gid00028/gid00031/gid00036/gid00030/gid00036/gid00042/gid00041/gid00028/gid00039/gid01141
+01
+Gestiona el Control de Asistencia 
+de tus colaboradores y administra 
+en tiempo real sus turnos, 
+permisos, vacaciones y horas 
+extras, con alertas y reportes.
+
+===PAGE 2===
+02Beneficios para tus Colaboradores:
+Beneficios para tu Empresa:DATA SHEET  MÓDULO DE CONTROL DE ASISTENCIA
+Registro incompleto 15/04Claudia PrietoRegistros incompletos
+Registro incompleto 15/04Cristián Morel
+Registro incompleto 15/04Mónica Martínez
+Registro incompleto 15/04Manuel Contreras
+Registro incompleto 15/04Fernando Ramírez
+Ver FichaVer FichaVer FichaVer FichaVer Ficha
+Asegura el cumplimiento de las normativas 
+legales.
+Toma decisiones con información en tiempo 
+real junto con reportería pensada para tu gestión.
+Automatiza tus procesos de control de 
+asistencia, /gid00028/gid00035/gid00042/gid00045/gid00045/gid00028/gid00001/gid00047/gid00036/gid00032/gid00040/gid00043/gid00042/gid00001/gid00052/gid00001/gid00045/gid00032/gid00031/gid00048/gid00030/gid00032/gid00001/gid00030/gid00042/gid00046/gid00047/gid00042/gid00046/gid01141
+Gestiona los turnos y la asistencia de 
+tus colaboradores /gid00032/gid00041/gid00001/gid00048/gid00041/gid00001/gid00046/gid00042/gid00039/gid00042/gid00001/gid00039/gid00048/gid00034/gid00028/gid00045/gid01141
+Múltiples tecnologías de marcación de 
+asistencia /gid00052/gid00001/gid00031/gid00036/gid00046/gid00040/gid00036/gid00041/gid00048/gid00052/gid00032/gid00001/gid00032/gid00045/gid00045/gid00042/gid00045/gid00032/gid00046/gid01141/gid00001
+/gid00021/gid00048/gid00046/gid00001/gid00030/gid00042/gid00039/gid00028/gid00029/gid00042/gid00045/gid00028/gid00031/gid00042/gid00045/gid00032/gid00046/gid00001/gid00047/gid00032/gid00041/gid00031/gid00045/gid00249/gid00041/gid00001/gid00039/gid00028/gid00001información 
+de su asistencia disponibles siempre.
+Sus datos siempre protegidos.
+
+
+===PAGE 3===
+Visualiza toda la información que
+necesitas en tu panel de control
+Accede en tiempo real a la información de asistencia de 
+todos tus lugares de trabajo. Obtén información útil para 
+la gestión diaria como: porcentajes de asistencia, horas 
+de retardos, ubicación de tus colaboradores, entre otros. 
+Gestiona los indicadores de asistencia de cada lugar 
+de trabajo, incluyendo colaboradores asistentes y 
+aquellos ausentes por permisos, vacaciones, incapaci-
+dades, entre otros.
+03
+Comparativo de asistencia Asistencia Empresa
+3% Asistencia
+39 Total nóminas
+1 Asistencia
+1 Persona de confianza
+0 Permisos
+0 Incapacidades
+0 Vacaciones26-12 20-01 14-02 01-03 12-04
+Línea de tiempo hoy
+Apellidos
+TBU210421JV6 Rivera Gómez
+Contratos definidos
+Contratos indefinidosMiguel Proyect Marketing Indefinido 09:29:46Especialidad Equipo
+Contrato
+Indefinido
+Prueba
+Honorarios
+SIn información100%
+0%
+0%
+0%1
+0
+0
+049
+5
+2
+1%Asistencia Asistencia Total RegistroContrato Último Registro RFC Nombre
+Asistencia / Por contrato Top 10 - Asistencia por contratoDATA SHEET  MÓDULO DE CONTROL DE ASISTENCIA
+Infórmate en tiempo real de alertas importantes, 
+accediendo rápidamente a gestionar retardos, registros 
+incompletos, horas extras, inasistencias, etc.
+5 Registros incompletosAumento inasistencias
+22 posibles hrs. extras
+Nuevos RetardosAlertas
+
+
+===PAGE 4===
+Tu asistencia geolocalizada
+Accede al reporte de cada marcaje,
+identifica el equipo utilizado y visualiza
+su ubicación en el mapa.
+Configura el radio de asistencia de acuerdo a la 
+ubicación del lugar de trabajo incorporada en Google 
+Maps, para evitar marcas fuera del lugar de trabajo.
+04Administra el tiempo tolerancia de 
+marcaje que necesites
+Configura el rango de minutos de retardo 
+o salida anticipada "permitido" .
+Tolerancia de entrada
+Este lugar de trabajo permite una 
+tolerancia de 10 minutos desde 02-01.
+Lugar de trabajo: Buk
+Datos lugar de trabajo:
+4DATA SHEET  MÓDULO DE CONTROL DE ASISTENCIA
+País: México
+Alcaldía: Cuidad de México
+Dirección: Aristóteles 210, Polanco
+.mx .mx
+
+===PAGE 5===
+05Planifica y asigna tus turnos
+Podrás crear turnos permanentes, transitorios 
+o flexibles dependiendo tus necesidades:Turnos
+Permanentes: /gid00017/gid00042/gid00031/gid00045/gid00249/gid00046/gid00001/gid00032/gid00046/gid00043/gid00032/gid00030/gid00036/gid00033/gid00036/gid00030/gid00028/gid00045/gid00001/gid00048/gid00041/gid00001/gid00029/gid00039/gid00042/gid00044/gid00048/gid00032/gid00001/gid00031/gid00032/gid00001/gid00047/gid00045/gid00028/gid00029/gid00028/gid00037/gid00042/gid01142/gid00001
+/gid00031/gid00032/gid00033/gid00036/gid00041/gid00036/gid00032/gid00041/gid00031/gid00042/gid00001/gid00035/gid00042/gid00045/gid00028/gid00001/gid00031/gid00032/gid00001/gid00036/gid00041/gid00034/gid00045/gid00032/gid00046/gid00042/gid01142/gid00001/gid00046/gid00028/gid00039/gid00036/gid00031/gid00028/gid00001/gid00052/gid00001/gid00031/gid00316/gid00028/gid00046/gid00001/gid00031/gid00032/gid00001/gid00047/gid00045/gid00028/gid00029/gid00028/gid00037/gid00042/gid00001/gid00032/gid00041/gid00001
+/gid00039/gid00028/gid00001/gid00046/gid00032/gid00040/gid00028/gid00041/gid00028/gid01141/gid00001/gid00006/gid00046/gid00047/gid00042/gid00001/gid00046/gid00032/gid00001/gid00043/gid00042/gid00031/gid00045/gid00249/gid00001/gid00028/gid00046/gid00036/gid00034/gid00041/gid00028/gid00045/gid00001/gid00031/gid00032/gid00001/gid00040/gid00042/gid00031/gid00042/gid00001/gid00043/gid00032/gid00045/gid00040/gid00028/gid00041/gid00032/gid00041/gid00047/gid00032/gid00001
+/gid00042/gid00001/gid00043/gid00042/gid00045/gid00001/gid00029/gid00039/gid00042/gid00044/gid00048/gid00032/gid00046/gid00001/gid00045/gid00042/gid00047/gid00028/gid00047/gid00036/gid00049/gid00042/gid00046/gid01141
+Transitorios: /gid00004/gid00045/gid00032/gid00028/gid00030/gid00036/gid00354/gid00041/gid00001/gid00031/gid00032/gid00001/gid00047/gid00048/gid00045/gid00041/gid00042/gid00046/gid00001/gid00046/gid00032/gid00034/gid00402/gid00041/gid00001/gid00035/gid00042/gid00045/gid00028/gid00046/gid00001/gid00031/gid00032/gid00001
+/gid00032/gid00041/gid00047/gid00045/gid00028/gid00031/gid00028/gid00001/gid00052/gid00001/gid00046/gid00028/gid00039/gid00036/gid00031/gid00028/gid00001/gid00043/gid00028/gid00045/gid00028/gid00001/gid00048/gid00041/gid00001/gid00045/gid00028/gid00041/gid00034/gid00042/gid00001/gid00031/gid00032/gid00047/gid00032/gid00045/gid00040/gid00036/gid00041/gid00028/gid00031/gid00042/gid00001/gid00031/gid00032/gid00001/gid00031/gid00316/gid00028/gid00046/gid01141
+Flexibles: /gid00004/gid00045/gid00032/gid00028/gid00030/gid00036/gid00354/gid00041/gid00001/gid00031/gid00032/gid00001/gid00047/gid00048/gid00045/gid00041/gid00042/gid00046/gid00001/gid00046/gid00036/gid00041/gid00001/gid00035/gid00042/gid00045/gid00028/gid00045/gid00036/gid00042/gid00001/gid00031/gid00032/gid00001/gid00032/gid00041/gid00047/gid00045/gid00028/gid00031/gid00028/gid00001/gid00042/gid00001
+/gid00046/gid00028/gid00039/gid00036/gid00031/gid00028/gid01142/gid00001/gid00032/gid00041/gid00001/gid00044/gid00048/gid00032/gid00001/gid00046/gid00032/gid00001/gid00030/gid00042/gid00041/gid00033/gid00036/gid00034/gid00048/gid00045/gid00028/gid00041/gid00001/gid01151/gid00051/gid01151/gid00001/gid00035/gid00042/gid00045/gid00028/gid00046/gid00001/gid00031/gid00032/gid00001/gid00047/gid00045/gid00028/gid00029/gid00028/gid00037/gid00042/gid00001/gid00052/gid00001
+/gid00030/gid00042/gid00040/gid00036/gid00032/gid00041/gid00053/gid00028/gid00001/gid00028/gid00001/gid00045/gid00032/gid00034/gid00036/gid00045/gid00001/gid00030/gid00048/gid00028/gid00041/gid00031/gid00042/gid00001/gid00032/gid00039/gid00001/gid00047/gid00045/gid00028/gid00029/gid00028/gid00037/gid00028/gid00031/gid00042/gid00045/gid00001/gid00045/gid00032/gid00034/gid00036/gid00046/gid00047/gid00045/gid00028/gid00001/gid00039/gid00028/gid00001/gid00032/gid00041/gid00047/gid00045/gid00028/gid00031/gid00028/gid01141
+Asigna los turnos por calendario configurando la recurrencia 
+necesaria y además masivamente a través de un archivo excel:
+Asigna turnos desde la vista calendario, determinando persona y jornada. La asignación 
+masiva mediante importador te permite programar turnos hasta 180 días hacia adelante. 
+Esto permite asignar turnos que varían según una pauta definida hacia el futuro.
+05
+Planificación Mensual
+03-04 Desde 03-07 Hasta Todos Registros Fijo Contrato Todos Freelance Filtrar
+RFC
+TBU210421V6
+TBU210421E4
+TBU210421X2Área
+Marketing
+Marketing
+Marketing
+1        2       3      4       5       6      7       8       9      10     11    12    13    14     15    16     17    18     19    20    21  DATA SHEET  MÓDULO DE CONTROL DE ASISTENCIA
+Podrás crear múltiples turnos.
+ Identificar la programación establecida.
+Gestionar de manera flexible y masiva la 
+programación de turnos.
+Flexibilizar el horario de trabajo indicando
+únicamente cantidad de horas de jornada.
+Crear Nuevo Turno
+Permanentes
+Transitorios
+Flexibles
+
+===PAGE 6===
+06Gestiona y administra las horas extras
+Elige la opción de marcaje que 
+más se adapte a tu empresa
+Desde la app móvil, huella, lector de palma,
+reconocimiento facial. Como tú prefieras.
+/gid00002/gid00043/gid00043/gid00001/gid00014/gid00354/gid00049/gid00036/gid00039
+Registro desde cualquier teléfono 
+móvil usando la app para el registro./gid00009/gid00048/gid00032/gid00039/gid00039/gid00028
+Registro biométrico de reconocimiento 
+de huella por colaborador.
+/gid00013/gid00032/gid00030/gid00047/gid00042/gid00045/gid00001/gid00031/gid00032/gid00001/gid00017/gid00028/gid00039/gid00040/gid00028
+Registro por medio del reconocimiento 
+de la palma de la mano de cada colabora-
+dor como control biométrico antiplagios./gid00019/gid00032/gid00030/gid00042/gid00041/gid00042/gid00030/gid00036/gid00040/gid00036/gid00032/gid00041/gid00047/gid00042/gid00001/gid00007/gid00028/gid00030/gid00036/gid00028/gid00039
+Registro del rostro completo de cada 
+colaborador a prueba de fallos o 
+suplantación.DATA SHEET  MÓDULO DE CONTROL DE ASISTENCIA
+Elimina errores en el control y aprobación de horas extras. Aprueba o rechaza las horas extras realizadas diaria-
+mente o por rango de tiempo de manera fácil. 
+Elige cómo quieres compensar las horas extras para 
+cada caso.
+/gid00014/gid00028/gid00045/gid00030/gid00028/gid00030/gid00036/gid00354/gid00041/gid00001/gid00024/gid00032/gid00029
+Marcaje desde el portal de colaborador 
+en Buk y marcaje desde la URL de tu 
+empresa. 
+
+===PAGE 7===
+07Envía el comprobante electrónico
+Luego de cada marca de entrada o salida, se envía un 
+comprobante de registro de asistencia al empleador 
+y colaborador correspondiente.
+¡Integra asistencia con nuestro 
+software de nómina!
+Sincroniza el registro de asistencia con nuestra 
+plataforma para la gestión de nómina.
+Mantén actualizada la información de: Permisos, 
+incapacidades, vacaciones, horas extras, inasistencias y 
+horas no trabajadas, todo en el mismo lugar. 
+Registro Asistencia
+RFC Empresa
+Lugar de trabajo
+Dirección
+Nombre
+RFC
+Contrato
+Turno
+Fecha
+HoraTBU210421JV6
+La Estrella
+Av. Milan 432
+Carlos Rojas
+TBU210421JV6
+Indefinido
+23:00-8:00
+04-03
+22:58:04
+Verificación
+Nómina Abril
+Descargar
+Percepciones
+Total Deducciones
+Total Percepciones
+Deducciones
+Neto a pagar:Sueldo Vacaciones
+Sueldo
+Horas Extra Dobles  2 horas$2.00
+$35,002
+$3.00
+Anexos
+Hora Extra Dobles 03/05 2.0Tipo de Hora ExtraHoras Extras
+Fecha Cantidad de Horas
+Colaboradores
+Incapacidades
+Vacaciones
+Permisos
+Horas ExtrasBuk Asistencia
+Inasistencias
+Hrs. no trabajadas
+DATA SHEET  MÓDULO DE CONTROL DE ASISTENCIA
+
+
+===PAGE 8===
+¡Optimiza tu operación y adelántate a los 
+hechos, con reportería en tiempo real!
+08/gid00016/gid00029/gid00047/gid00285/gid00041/gid00001/gid00040/gid00402/gid00039/gid00047/gid00036/gid00043/gid00039/gid00032/gid00046/gid00001/gid00045/gid00032/gid00043/gid00042/gid00045/gid00047/gid00032/gid00046/gid00001/gid00032/gid00051/gid00043/gid00042/gid00045/gid00047/gid00028/gid00029/gid00039/gid00032/gid00046/gid01142 accediendo 
+a información ordenada, detallada y actualizada.
+/gid00021/gid00028/gid00045/gid00037/gid00032/gid00047/gid00028/gid00001/gid00002/gid00046/gid00036/gid00046/gid00047/gid00032/gid00041/gid00030/gid00036/gid00028, con impresión del resumen 
+mensual y semanal, permitiéndote la impresión
+de las tarjetas de los trabajadores.
+/gid00002/gid00046/gid00036/gid00046/gid00047/gid00032/gid00041/gid00030/gid00036/gid00028/gid00001/gid00014/gid00032/gid00041/gid00046/gid00048/gid00028/gid00039/gid00001/gid00052/gid00001/gid00020/gid00032/gid00040/gid00028/gid00041/gid00028/gid00039/gid01141
+/gid00002/gid00046/gid00036/gid00046/gid00047/gid00032/gid00041/gid00030/gid00036/gid00028/gid00001/gid00043/gid00042/gid00045/gid00001/gid00249/gid00045/gid00032/gid00028/gid01141
+/gid00019/gid00032/gid00043/gid00042/gid00045/gid00047/gid00032/gid00001de Horas Extras, Horas no trabajadas, 
+retardos, entre otras.
+Toma mejores decisiones y acciones en base a costos, 
+rotación y horas laborales, con información adicional 
+como datos de georreferencia e información económica.
+Reportería Instantánea
+Acciones Masivas Tarjeta de Asistencia
+Asistencia Mensual/ Vista en horas
+Reporte Asistencia semanal por Rango fechas
+Horas Extras
+Horas No trabajadasDATA SHEET  MÓDULO DE CONTROL DE ASISTENCIA
+
+===PAGE 9===
+09DATA SHEET  MÓDULO DE CONTROL DE ASISTENCIA
+Todas las funcionalidades que 
+necesitas en un solo lugar
+Múltiples formas 
+de marcaje
+Reportería
+en líneaGeolocalizaciónGestión de 
+horarios y
+horas extra
+Vista
+Empresa
+Integración
+con Buk
+Nómina
+Visualiza la información de 
+todos tus lugares de trabajo
+Agrupa la información de asistencia de todos los 
+lugares de trabajo de la empresa, visualiza las 
+asistencias del momento por ubicación (mapa) y por 
+recinto. Despliega además un ranking de horas extras 
+por lugar de trabajo.
+Portal del trabajador
+Cada colaborador podrá contar con un acceso 
+propio, permitiéndole tener al alcance su tarjeta de 
+asistencia, filtrando por rangos de fechas y además, 
+conocer el turno que le han asignado.
+
+
+===PAGE 10===
+DATA SHEET  MÓDULO DE CONTROL DE ASISTENCIA
+Nómina
+“El mayor impacto que ha tenido Buk en 99 minutos es primero, 
+el poder adaptarse a las necesidades de la empresa, que 
+nosotros no tengamos que cambiar los procesos de la empresa 
+para que se adapte al sistema, sino que el sistema de manera 
+eficaz pueda adaptarse a nuestros procesos. Y lo segundo, el 
+tener toda la data en un solo sitio y poder ser accesible en tiempo 
+real y que esa data siempre sea confiable. ” 
+99minutos
+Módulos/Complementos relacionados
+05
+Buk 2024/gid00004/gid00042/gid00041/gid00047/gid00249/gid00030/gid00047/gid00028/gid00041/gid00042/gid00046
+En Buk nos importa tu felicidad y la de tus colaboradores,
++de 6.000 empresas ya tienen un lugar de trabajo más feliz con Buk

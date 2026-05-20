@@ -1,0 +1,41 @@
+@page
+@model ErrorModel
+@{
+    ViewData["Title"] = "Error";
+}
+
+<div class="page-shell">
+    <section class="page-hero">
+        <div>
+            <p class="hero-kicker">Sistema / Error</p>
+            <h1 class="hero-title">No se pudo completar la solicitud</h1>
+            <p class="hero-description">La operacion no termino correctamente. Intenta de nuevo o comparte el identificador con soporte interno.</p>
+        </div>
+        <div class="hero-actions">
+            <a class="btn btn-outline-primary" asp-page="/Index">Volver al inicio</a>
+        </div>
+    </section>
+
+    <section class="section-card">
+        <header class="section-head">
+            <div>
+                <h2 class="section-title">Detalle operativo</h2>
+                <p class="section-subtitle">Informacion segura para seguimiento.</p>
+            </div>
+            <span class="status-pill status-bad">Error</span>
+        </header>
+        <div class="section-body">
+            @if (Model.ShowRequestId)
+            {
+                <dl class="kv-grid">
+                    <dt>Request ID</dt>
+                    <dd><code>@Model.RequestId</code></dd>
+                </dl>
+            }
+            else
+            {
+                <p class="mb-0 text-muted">No hay identificador disponible para esta solicitud.</p>
+            }
+        </div>
+    </section>
+</div>

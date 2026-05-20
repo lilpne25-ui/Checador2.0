@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "https://afraid-parks-double.loca.lt/Login"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "https://afraid-parks-double.loca.lt/$1"
+    }
+  ]
+}

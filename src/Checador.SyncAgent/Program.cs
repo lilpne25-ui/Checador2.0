@@ -38,10 +38,20 @@ internal static class Program
             Enabled = cfg.Device.Enabled,
             PreferDirect = cfg.Device.PreferDirect,
             FallbackToAccess = cfg.Device.FallbackToAccess,
+            EnforceSyncAgentOnly = cfg.Device.EnforceSyncAgentOnly,
+            AllowedEntryAssemblies = cfg.Device.AllowedEntryAssemblies.ToList(),
             Ip = cfg.Device.Ip,
             Port = cfg.Device.Port,
             CommKey = cfg.Device.CommKey,
-            MachineNumber = cfg.Device.MachineNumber
+            MachineNumber = cfg.Device.MachineNumber,
+            Devices = cfg.Device.Devices.Select(d => new DirectDeviceEndpointOptions
+            {
+                Label = d.Label,
+                Ip = d.Ip,
+                Port = d.Port,
+                CommKey = d.CommKey,
+                MachineNumber = d.MachineNumber
+            }).ToList()
         });
 
         services.AddSingleton(new SqlSyncOptions

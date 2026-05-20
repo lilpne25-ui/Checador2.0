@@ -658,6 +658,12 @@ public partial class Form1 : Form
 
     private async Task<ConnectionProbeResult> ProbeConnectionAsync()
     {
+        var primaryDataSource = (_configuration.DataSource.Primary ?? string.Empty).Trim();
+        if (primaryDataSource.Equals("Sql", StringComparison.OrdinalIgnoreCase))
+        {
+            return await ProbeSqlConnectionAsync();
+        }
+
         var useDirect = _configuration.Device.Enabled && _configuration.Device.PreferDirect;
         if (useDirect)
         {
@@ -702,6 +708,37 @@ public partial class Form1 : Form
             BuildAccessDetail(accessResult));
     }
 
+    private async Task<ConnectionProbeResult> ProbeSqlConnectionAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_configuration.Sql.ConnectionString))
+        {
+            return new ConnectionProbeResult(
+                false,
+                "SQL Server",
+                "Sin conexión a SQL Server",
+                "Sql.ConnectionString está vacío.");
+        }
+
+        try
+        {
+            var stats = await _sqlSyncService.GetStatsAsync();
+
+            return new ConnectionProbeResult(
+                true,
+                "SQL Server",
+                "Conectado a SQL Server",
+                BuildSqlDetail(stats));
+        }
+        catch (Exception ex)
+        {
+            return new ConnectionProbeResult(
+                false,
+                "SQL Server",
+                "Sin conexión a SQL Server",
+                $"No se pudo conectar a SQL Server: {ex.Message}");
+        }
+    }
+
     private ConnectionProbeResult ProbeDirectConnection()
     {
         var zkemType = Type.GetTypeFromProgID("zkemkeeper.CZKEM")
@@ -717,84 +754,145 @@ public partial class Form1 : Form
                 "No se encontró zkemkeeper (CZKEM/ZKEM). Ejecuta instalar-zkteco-sdk-admin.ps1.");
         }
 
-        object? comObject = null;
-        try
-        {
-            comObject = Activator.CreateInstance(zkemType);
-            if (comObject is null)
-            {
-                return new ConnectionProbeResult(false, "ZKTeco Direct", "Instancia COM nula", "No se pudo crear instancia del SDK.");
-            }
+        var devices = GetConfiguredDirectDevices();
+        var okCount = 0;
+        var details = new List<string>();
 
-            dynamic zk = comObject;
+        foreach (var device in devices)
+        {
+            object? comObject = null;
             try
             {
-                if (_configuration.Device.CommKey > 0)
+                comObject = Activator.CreateInstance(zkemType);
+                if (comObject is null)
                 {
-                    zk.SetCommPassword(_configuration.Device.CommKey);
+                    details.Add($"FALLO {device.Label} {device.Ip}:{device.Port} - instancia COM nula.");
+                    continue;
                 }
-            }
-            catch
-            {
-            }
 
-            var connected = zk.Connect_Net(_configuration.Device.Ip, _configuration.Device.Port);
-            if (!(connected is bool ok) || !ok)
-            {
-                return new ConnectionProbeResult(
-                    false,
-                    "ZKTeco Direct",
-                    "Sin conexión directa al reloj",
-                    $"No se pudo conectar a {_configuration.Device.Ip}:{_configuration.Device.Port}.");
-            }
-
-            try
-            {
-                zk.EnableDevice(_configuration.Device.MachineNumber, true);
-            }
-            catch
-            {
-            }
-
-            return new ConnectionProbeResult(
-                true,
-                "ZKTeco Direct",
-                "Conectado al reloj por modo directo",
-                $"Dispositivo {_configuration.Device.Ip}:{_configuration.Device.Port}, máquina {_configuration.Device.MachineNumber}.");
-        }
-        catch (Exception ex)
-        {
-            return new ConnectionProbeResult(
-                false,
-                "ZKTeco Direct",
-                "Error en conexión directa",
-                ex.Message);
-        }
-        finally
-        {
-            try
-            {
-                if (comObject is not null)
-                {
-                    dynamic zk = comObject;
-                    zk.Disconnect();
-                }
-            }
-            catch
-            {
-            }
-
-            if (comObject is not null && Marshal.IsComObject(comObject))
-            {
+                dynamic zk = comObject;
                 try
                 {
-                    Marshal.FinalReleaseComObject(comObject);
+                    if (device.CommKey > 0)
+                    {
+                        zk.SetCommPassword(device.CommKey);
+                    }
                 }
                 catch
                 {
                 }
+
+                var connected = zk.Connect_Net(device.Ip, device.Port);
+                if (!(connected is bool ok) || !ok)
+                {
+                    details.Add($"FALLO {device.Label} {device.Ip}:{device.Port}.");
+                    continue;
+                }
+
+                try
+                {
+                    zk.EnableDevice(device.MachineNumber, true);
+                }
+                catch
+                {
+                }
+
+                okCount++;
+                details.Add($"OK {device.Label} {device.Ip}:{device.Port} (Maquina {device.MachineNumber}).");
+            }
+            catch (Exception ex)
+            {
+                details.Add($"FALLO {device.Label} {device.Ip}:{device.Port} - {ex.Message}");
+            }
+            finally
+            {
+                try
+                {
+                    if (comObject is not null)
+                    {
+                        dynamic zk = comObject;
+                        zk.Disconnect();
+                    }
+                }
+                catch
+                {
+                }
+
+                if (comObject is not null && Marshal.IsComObject(comObject))
+                {
+                    try
+                    {
+                        Marshal.FinalReleaseComObject(comObject);
+                    }
+                    catch
+                    {
+                    }
+                }
             }
         }
+
+        var total = devices.Count;
+        var summary = $"Conectados {okCount}/{total} reloj(es).";
+        var detail = string.Join(" | ", details);
+
+        if (okCount == total)
+        {
+            return new ConnectionProbeResult(
+                true,
+                "ZKTeco Direct",
+                "Conectado a todos los relojes",
+                $"{summary} {detail}");
+        }
+
+        if (okCount > 0)
+        {
+            return new ConnectionProbeResult(
+                true,
+                "ZKTeco Direct (parcial)",
+                "Conexión parcial en modo directo",
+                $"{summary} {detail}");
+        }
+
+        return new ConnectionProbeResult(
+            false,
+            "ZKTeco Direct",
+            "Sin conexión directa al reloj",
+            $"{summary} {detail}");
+    }
+
+    private List<(string Label, string Ip, int Port, int CommKey, int MachineNumber)> GetConfiguredDirectDevices()
+    {
+        var devices = new List<(string Label, string Ip, int Port, int CommKey, int MachineNumber)>();
+        if (_configuration.Device.Devices.Count > 0)
+        {
+            var index = 1;
+            foreach (var d in _configuration.Device.Devices)
+            {
+                if (string.IsNullOrWhiteSpace(d.Ip))
+                {
+                    continue;
+                }
+
+                var label = string.IsNullOrWhiteSpace(d.Label) ? $"Reloj-{index}" : d.Label.Trim();
+                var port = d.Port <= 0 ? 4370 : d.Port;
+                var machine = d.MachineNumber <= 0 ? 2 : d.MachineNumber;
+                devices.Add((label, d.Ip.Trim(), port, d.CommKey, machine));
+                index++;
+            }
+        }
+
+        if (devices.Count == 0)
+        {
+            var fallbackLabel = string.IsNullOrWhiteSpace(_configuration.Device.Ip) ? "Reloj-1" : "Reloj";
+            devices.Add((
+                fallbackLabel,
+                _configuration.Device.Ip.Trim(),
+                _configuration.Device.Port <= 0 ? 4370 : _configuration.Device.Port,
+                _configuration.Device.CommKey,
+                _configuration.Device.MachineNumber <= 0 ? 2 : _configuration.Device.MachineNumber));
+        }
+
+        return devices;
     }
 
     private static string BuildAccessDetail(Checador.Domain.Models.AccessDiagnosticsResult result)
@@ -803,6 +901,22 @@ public partial class Form1 : Form
             ? result.LastCheckTime.Value.ToString("dd/MM/yyyy HH:mm:ss")
             : "Sin marcas";
         return $"Empleados: {result.EmployeeCount}. Última marca: {ultimaMarca}.";
+    }
+
+    private static string BuildSqlDetail(SqlSyncStats stats)
+    {
+        var ultimaMarca = stats.LastPunch.HasValue
+            ? stats.LastPunch.Value.ToString("dd/MM/yyyy HH:mm:ss")
+            : "Sin marcas";
+
+        var ultimoSync = stats.LastSync.HasValue
+            ? stats.LastSync.Value.ToString("dd/MM/yyyy HH:mm:ss")
+            : "Sin sincronización";
+
+        var estado = string.IsNullOrWhiteSpace(stats.LastStatus) ? "N/A" : stats.LastStatus;
+
+        return $"Empleados SQL: {stats.TotalEmployees}. Marcas SQL: {stats.TotalPunches}. " +
+               $"Última marca: {ultimaMarca}. Último sync: {ultimoSync}. Estado: {estado}.";
     }
 
     private void SetConnectionIndicator(bool connected, string sourceLabel, string detail, bool writeLog)

@@ -1,10 +1,10 @@
 # Configuración remota MSSQL (red Ethernet)
 
-Esta guía permite conectar múltiples PCs cliente al SQL Server en `192.168.1.10:1433`, base `ZKBD`.
+Esta guía permite conectar múltiples PCs cliente al SQL Server en `SQL_HOST:1433`, base `ZKBD`.
 
 ## Datos de conexión
 
-- Servidor SQL: `192.168.1.10`
+- Servidor SQL: `SQL_HOST`
 - Puerto: `1433`
 - Base de datos: `ZKBD`
 
@@ -12,13 +12,13 @@ Autenticación recomendada en este entorno: **Windows integrada** (`Trusted_Conn
 
 Connection string recomendada en el proyecto:
 
-`Server=tcp:192.168.1.10,1433;Database=ZKBD;Trusted_Connection=True;TrustServerCertificate=True;Connection Timeout=30;`
+`Server=tcp:SQL_HOST,1433;Database=ZKBD;Trusted_Connection=True;TrustServerCertificate=True;Connection Timeout=30;`
 
 Alternativa si tu servidor requiere SQL Login (solo si tu DBA lo confirma):
 
-`Server=tcp:192.168.1.10,1433;Database=ZKBD;User Id=<usuario_sql>;Password=<password>;TrustServerCertificate=True;Connection Timeout=30;`
+`Server=tcp:SQL_HOST,1433;Database=ZKBD;User Id=<usuario_sql>;Password=<password>;TrustServerCertificate=True;Connection Timeout=30;`
 
-## 1) Configuración en el servidor SQL (192.168.1.10)
+## 1) Configuración en el servidor SQL (SQL_HOST)
 
 1. Abrir **SQL Server Configuration Manager**.
 2. Ir a **SQL Server Network Configuration > Protocols for <instancia>**.
@@ -69,3 +69,4 @@ Si falla:
 - Evitar usar `sa` en producción cuando sea posible.
 - Crear un usuario SQL dedicado con permisos mínimos necesarios sobre `ZKBD`.
 - Restringir acceso de red al puerto 1433 solo a la subred autorizada.
+

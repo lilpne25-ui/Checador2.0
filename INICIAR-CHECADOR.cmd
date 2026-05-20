@@ -19,11 +19,15 @@ if /I "%MODE%"=="PORTABLE" (
     set "EXE=Checador.Desktop.exe"
     set "APPSETTINGS_SRC=appsettings.json"
     set "APPSETTINGS_DST=appsettings.json"
+    set "APPSETTINGS_LOCAL_SRC=appsettings.local.json"
+    set "APPSETTINGS_LOCAL_DST=appsettings.local.json"
 ) else (
     set "PROJ=src\Checador.Desktop\Checador.Desktop.csproj"
     set "EXE=src\Checador.Desktop\bin\Release\net8.0-windows\Checador.Desktop.exe"
     set "APPSETTINGS_SRC=src\Checador.Desktop\appsettings.json"
     set "APPSETTINGS_DST=src\Checador.Desktop\bin\Release\net8.0-windows\appsettings.json"
+    set "APPSETTINGS_LOCAL_SRC=src\Checador.Desktop\appsettings.local.json"
+    set "APPSETTINGS_LOCAL_DST=src\Checador.Desktop\bin\Release\net8.0-windows\appsettings.local.json"
 )
 
 if /I "%MODE%"=="DEV" (
@@ -70,6 +74,10 @@ if /I "%MODE%"=="DEV" (
 
 if exist "%APPSETTINGS_SRC%" (
     copy /Y "%APPSETTINGS_SRC%" "%APPSETTINGS_DST%" >nul
+)
+
+if exist "%APPSETTINGS_LOCAL_SRC%" (
+    copy /Y "%APPSETTINGS_LOCAL_SRC%" "%APPSETTINGS_LOCAL_DST%" >nul
 )
 
 if not exist "%EXE%" (

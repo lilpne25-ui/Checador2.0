@@ -37,28 +37,24 @@ Sistema empresarial para sincronizar asistencias desde checador ZKTeco hacia SQL
 - `src/Checador.ConsoleApp`: utilidades operativas, auditorías y recálculos.
 - `src/Checador.SyncAgent`: agente de sincronización desacoplado.
 
-## Configuración activa de referencia
+## Configuracion activa de referencia
 
-### Desktop (`src/Checador.Desktop/appsettings.json`)
+Los `appsettings.json` versionados ahora son base segura (sin secretos reales).
 
-- SQL: `Server=TI;Database=ZKBD;Trusted_Connection=True;TrustServerCertificate=True;`
-- Reloj: `192.168.1.201:4370`
-- `DataSource.Primary = "Sql"`
-- `PervasiveSync.Enabled = true`
-- Salida reportes: `\\ociserver\INNOVAX\AREA DE TRABAJO\C.- RECURSOS HUMANOS\REPORTS`
+Credenciales y datos sensibles van solo en:
 
-### Console (`src/Checador.ConsoleApp/appsettings.json`)
+- `appsettings.local.json` por proyecto (no versionado)
+- variables de entorno `CHECADOR_*`
 
-- SQL: `Server=.;Database=ZKBD;Trusted_Connection=True;TrustServerCertificate=True;`
-- `PervasiveSync.Enabled = false` (en consola por defecto)
+Plantillas disponibles:
 
-### SyncAgent (`src/Checador.SyncAgent/appsettings.json`)
+- `src/Checador.Desktop/appsettings.local.example.json`
+- `src/Checador.ConsoleApp/appsettings.local.example.json`
+- `src/Checador.SyncAgent/appsettings.local.example.json`
+- `src/Checador.Api/appsettings.local.example.json`
+- `src/Checador.Web/appsettings.local.example.json`
 
-- SQL: `Server=.;Database=ZKBD;Trusted_Connection=True;TrustServerCertificate=True;`
-- `PervasiveSync.Enabled = true`
-
-> Recomendación: credenciales sensibles deben ir en `appsettings.local.json` o variables de entorno `CHECADOR_*`.
-
+Guia y checklist: `docs/CONFIG-LOCAL-SEGURA.md`
 ## Requisitos
 
 1. .NET SDK 8+.
@@ -138,3 +134,4 @@ Pasos mínimos:
 - No editar archivos dentro de `bin/` o `obj/`.
 - Editar solo configuraciones fuente en `src/*/appsettings.json` + `appsettings.local.json`.
 - Si hay cambios de lógica/reglas, documentarlos en `docs/AI-CACHE-CHECADOR.md`.
+

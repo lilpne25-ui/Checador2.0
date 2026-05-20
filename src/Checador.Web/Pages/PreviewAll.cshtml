@@ -1,0 +1,262 @@
+﻿@page
+@model Checador.Web.Pages.PreviewAllModel
+@{
+    ViewData["Title"] = "Preview masivo";
+    ViewData["LayoutMode"] = "Wide";
+    var selected = Model.SelectedPreview;
+    var routeFrom = Model.From.ToString("yyyy-MM-dd");
+    var routeTo = Model.To.ToString("yyyy-MM-dd");
+}
+
+<div class="page-shell preview-workspace">
+    <section class="preview-summary-card">
+        <div>
+            <p class="page-breadcrumb">Consulta / Masivo</p>
+            <h1 class="hero-title">Vista previa general</h1>
+            <p class="preview-summary-title">Preview masiva - revisa uno por uno sin generar Excel</p>
+            <p class="preview-summary-line">
+                Empleados: <strong>@Model.TotalEmployees</strong>
+                <span>|</span> Horas: <strong>@Model.TotalWorkedHours.ToString("0.##")</strong>
+                <span>|</span> Extra: <strong>@Model.TotalExtraHours.ToString("0.##")</strong>
+                <span>|</span> Incidencias: <strong>@Model.TotalIncidences</strong>
+                <span>|</span> Sin registro: <strong>@Model.TotalNoRecordDays</strong>
+            </p>
+        </div>
+
+        <form method="get" class="preview-period-form" aria-label="Periodo de consulta">
+            <input type="hidden" asp-for="Search" />
+            <input type="hidden" asp-for="SearchBy" />
+            <input type="hidden" asp-for="Status" />
+            <input type="hidden" asp-for="SelectedUserId" />
+            <div>
+                <label asp-for="From" class="form-label"></label>
+                <input asp-for="From" class="form-control form-control-sm" type="date" />
+            </div>
+            <div>
+                <label asp-for="To" class="form-label"></label>
+                <input asp-for="To" class="form-control form-control-sm" type="date" />
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Consultar</button>
+        </form>
+
+        <div class="preview-summary-metrics" aria-label="Resumen masivo">
+            <div class="preview-metric is-employees">
+                <span>Empleados</span>
+                <strong>@Model.TotalEmployees</strong>
+            </div>
+            <div class="preview-metric is-hours">
+                <span>Horas</span>
+                <strong>@Model.TotalWorkedHours.ToString("0.##")</strong>
+            </div>
+            <div class="preview-metric is-extra">
+                <span>Extra</span>
+                <strong>@Model.TotalExtraHours.ToString("0.##")</strong>
+            </div>
+            <div class="preview-metric is-incidents">
+                <span>Incidencias</span>
+                <strong>@Model.TotalIncidences</strong>
+            </div>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger" role="alert" aria-live="assertive">@Model.ErrorMessage</div>
+    }
+
+    <section class="preview-board">
+        <div class="preview-panel preview-list-panel">
+            <div class="preview-panel-head">
+                <div>
+                    <h2>Empleados</h2>
+                    <p>Mostrando @Model.VisiblePreviews.Count/@Model.TotalEmployees</p>
+                </div>
+                <span class="status-badge is-info">@Model.From.ToString("dd/MM/yyyy") - @Model.To.ToString("dd/MM/yyyy")</span>
+            </div>
+
+            <form method="get" class="preview-filter-bar" aria-label="Filtros de empleados">
+                <input type="hidden" name="From" value="@routeFrom" />
+                <input type="hidden" name="To" value="@routeTo" />
+                <div class="preview-filter-search">
+                    <label asp-for="Search" class="form-label">Buscar empleado (nombre o USERID)</label>
+                    <input asp-for="Search" class="form-control form-control-sm" placeholder="Ejemplo: 14 o AGAPITO" />
+                </div>
+                <div>
+                    <label asp-for="Status" class="form-label">Estado</label>
+                    <select asp-for="Status" class="form-select form-select-sm">
+                        <option value="TODOS">TODOS</option>
+                        <option value="OK">OK</option>
+                        <option value="REVISAR">REVISAR</option>
+                        <option value="SIN_REGISTRO">SIN REGISTRO</option>
+                    </select>
+                </div>
+                <div>
+                    <label asp-for="SearchBy" class="form-label">Campo</label>
+                    <select asp-for="SearchBy" class="form-select form-select-sm">
+                        <option value="TODOS">TODOS</option>
+                        <option value="USERID">USERID</option>
+                        <option value="NOMBRE">NOMBRE</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">Ir</button>
+                <a class="btn btn-secondary-soft btn-sm" asp-page="/PreviewAll" asp-route-From="@routeFrom" asp-route-To="@routeTo">Limpiar filtros</a>
+            </form>
+
+            @if (Model.VisiblePreviews.Count > 0)
+            {
+                <div class="preview-table-scroll">
+                    <table class="table table-sm table-modern preview-table mb-0">
+                        <thead>
+                            <tr>
+                                <th class="col-id">USERID</th>
+                                <th>Empleado</th>
+                                <th>Estado</th>
+                                <th>Horas</th>
+                                <th>Extra</th>
+                                <th>Dias con marca</th>
+                                <th>Incidencias</th>
+                                <th>Sin registro</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var item in Model.VisiblePreviews)
+                        {
+                            var isSelected = selected?.UserId == item.UserId;
+                            <tr class="preview-row @(isSelected ? "is-selected" : string.Empty)">
+                                <td>
+                                    <a class="preview-row-link" asp-page="/PreviewAll"
+                                       asp-route-From="@routeFrom"
+                                       asp-route-To="@routeTo"
+                                       asp-route-Search="@Model.Search"
+                                       asp-route-SearchBy="@Model.SearchBy"
+                                       asp-route-Status="@Model.Status"
+                                       asp-route-SelectedUserId="@item.UserId">@item.UserId</a>
+                                </td>
+                                <td class="preview-employee-cell">
+                                    <a class="preview-row-link" asp-page="/PreviewAll"
+                                       asp-route-From="@routeFrom"
+                                       asp-route-To="@routeTo"
+                                       asp-route-Search="@Model.Search"
+                                       asp-route-SearchBy="@Model.SearchBy"
+                                       asp-route-Status="@Model.Status"
+                                       asp-route-SelectedUserId="@item.UserId">@item.UserId - @item.EmployeeName</a>
+                                </td>
+                                <td><span class="status-badge @Model.GetEmployeeStatusCss(item)">@Model.GetEmployeeStatusKey(item)</span></td>
+                                <td><strong>@item.TotalWorkedHours.ToString("0.##")</strong></td>
+                                <td><strong>@item.TotalExtraHours.ToString("0.##")</strong></td>
+                                <td>@Model.GetWorkedDayCount(item)</td>
+                                <td>@Model.GetIncidentCount(item)</td>
+                                <td>@Model.GetNoRecordCount(item)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <div class="empty-state-icon">ALL</div>
+                    <p class="empty-state-title">Sin empleados para los filtros</p>
+                    <p class="empty-state-copy">Ajusta el texto, estado o periodo para volver a cargar resultados.</p>
+                </div>
+            }
+        </div>
+
+        <aside class="preview-panel preview-detail-panel">
+            <div class="preview-panel-head">
+                <div>
+                    <h2>Detalle del empleado seleccionado</h2>
+                    <p>Datos diarios incluidos en la respuesta actual de la API.</p>
+                </div>
+            </div>
+
+            @if (selected is not null)
+            {
+                <div class="preview-detail-card">
+                    <div class="preview-detail-top">
+                        <div>
+                            <h3>Empleado @selected.UserId - @selected.EmployeeName</h3>
+                            <p>Periodo: @Model.From.ToString("dd/MM/yyyy") al @Model.To.ToString("dd/MM/yyyy")</p>
+                        </div>
+                        <a class="btn btn-outline-primary btn-sm"
+                           asp-page="/PreviewEmployee"
+                           asp-route-UserId="@selected.UserId"
+                           asp-route-From="@routeFrom"
+                           asp-route-To="@routeTo">Ver completo</a>
+                    </div>
+
+                    <div class="preview-detail-stats">
+                        <div class="preview-metric is-hours">
+                            <span>Horas</span>
+                            <strong>@selected.TotalWorkedHours.ToString("0.##")</strong>
+                        </div>
+                        <div class="preview-metric is-extra">
+                            <span>Extra</span>
+                            <strong>@selected.TotalExtraHours.ToString("0.##")</strong>
+                        </div>
+                        <div class="preview-metric is-incidents">
+                            <span>Incidencias</span>
+                            <strong>@Model.GetIncidentCount(selected)</strong>
+                        </div>
+                        <div class="preview-metric is-missing">
+                            <span>Sin registro</span>
+                            <strong>@Model.GetNoRecordCount(selected)</strong>
+                        </div>
+                    </div>
+
+                    @if (selected.Days.Count > 0)
+                    {
+                        <div class="preview-day-table-scroll">
+                            <table class="table table-sm table-modern preview-day-table mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Entrada</th>
+                                        <th>Salida comida</th>
+                                        <th>Entrada comida</th>
+                                        <th>Salida</th>
+                                        <th>Horas</th>
+                                        <th>Horas extra</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var day in selected.Days)
+                                {
+                                    <tr>
+                                        <td>@day.Date</td>
+                                        <td>@(day.Entrada?.ToString("HH:mm") ?? "-")</td>
+                                        <td>@(day.SalidaComida?.ToString("HH:mm") ?? "-")</td>
+                                        <td>@(day.EntradaComida?.ToString("HH:mm") ?? "-")</td>
+                                        <td>@(day.Salida?.ToString("HH:mm") ?? "-")</td>
+                                        <td>@(day.HorasTrabajadas?.ToString("0.##") ?? "-")</td>
+                                        <td>@(day.HorasExtra?.ToString("0.##") ?? "-")</td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="empty-state">
+                            <div class="empty-state-icon">DIA</div>
+                            <p class="empty-state-title">Sin detalle diario</p>
+                            <p class="empty-state-copy">La API no devolvio dias para este empleado en el rango actual.</p>
+                        </div>
+                    }
+                </div>
+                <p class="preview-tip">Tip: usa filtros y selecciona un USERID para revisar empleado por empleado sin generar archivos.</p>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <div class="empty-state-icon">EMP</div>
+                    <p class="empty-state-title">Selecciona un empleado</p>
+                    <p class="empty-state-copy">El detalle aparecera aqui cuando existan resultados en el rango.</p>
+                </div>
+            }
+        </aside>
+    </section>
+</div>
+

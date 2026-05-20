@@ -72,7 +72,19 @@ public sealed record WorkScheduleItem(
     TimeSpan StartTime,
     TimeSpan EndTime,
     decimal StandardHours,
-    bool IsActive);
+    bool IsActive,
+    int LateToleranceMinutes = 10);
+
+public sealed record LatenessIncidentItem(
+    int UserId,
+    string EmployeeName,
+    DateOnly WorkDate,
+    DateTime FirstCheckIn,
+    int? WorkScheduleCode,
+    string? WorkScheduleName,
+    TimeSpan ScheduledStartTime,
+    int LateToleranceMinutes,
+    int DelayMinutes);
 
 public sealed record EmployeeAdminSnapshot(
     int UserId,
@@ -145,4 +157,16 @@ public sealed record PervasiveNightShiftCleanupResult(
     int AffectedUsers,
     int DeletedSplitRows,
     string MirrorMessage,
+    string Message);
+
+public sealed record PervasiveNightShiftCleanupPreviewResult(
+    bool Enabled,
+    DateTime FromDate,
+    DateTime ToDate,
+    int? UserId,
+    int CandidatePunches,
+    int ProcessablePunches,
+    bool TruncatedByTop,
+    int AffectedUsers,
+    int EstimatedSplitRows,
     string Message);

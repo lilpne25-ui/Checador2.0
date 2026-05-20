@@ -33,15 +33,25 @@ var startupAccessOptions = new AccessConnectionOptions
     CommandTimeoutSeconds = appConfig.Access.CommandTimeoutSeconds
 };
 
-var startupDeviceOptions = new DirectDeviceOptions
-{
-    Enabled = appConfig.Device.Enabled,
-    PreferDirect = appConfig.Device.PreferDirect,
-    FallbackToAccess = appConfig.Device.FallbackToAccess,
-    Ip = appConfig.Device.Ip,
-    Port = appConfig.Device.Port,
-    CommKey = appConfig.Device.CommKey,
-    MachineNumber = appConfig.Device.MachineNumber
+        var startupDeviceOptions = new DirectDeviceOptions
+        {
+            Enabled = appConfig.Device.Enabled,
+            PreferDirect = appConfig.Device.PreferDirect,
+            FallbackToAccess = appConfig.Device.FallbackToAccess,
+            EnforceSyncAgentOnly = appConfig.Device.EnforceSyncAgentOnly,
+            AllowedEntryAssemblies = appConfig.Device.AllowedEntryAssemblies.ToList(),
+            Ip = appConfig.Device.Ip,
+            Port = appConfig.Device.Port,
+            CommKey = appConfig.Device.CommKey,
+            MachineNumber = appConfig.Device.MachineNumber,
+            Devices = appConfig.Device.Devices.Select(d => new DirectDeviceEndpointOptions
+    {
+        Label = d.Label,
+        Ip = d.Ip,
+        Port = d.Port,
+        CommKey = d.CommKey,
+        MachineNumber = d.MachineNumber
+    }).ToList()
 };
 
 var startupSqlOptions = new SqlSyncOptions
@@ -102,15 +112,25 @@ services.AddSingleton(new AccessConnectionOptions
     CommandTimeoutSeconds = startupAccessOptions.CommandTimeoutSeconds
 });
 
-services.AddSingleton(new DirectDeviceOptions
-{
-    Enabled = startupDeviceOptions.Enabled,
-    PreferDirect = startupDeviceOptions.PreferDirect,
-    FallbackToAccess = startupDeviceOptions.FallbackToAccess,
-    Ip = startupDeviceOptions.Ip,
-    Port = startupDeviceOptions.Port,
-    CommKey = startupDeviceOptions.CommKey,
-    MachineNumber = startupDeviceOptions.MachineNumber
+        services.AddSingleton(new DirectDeviceOptions
+        {
+            Enabled = startupDeviceOptions.Enabled,
+            PreferDirect = startupDeviceOptions.PreferDirect,
+            FallbackToAccess = startupDeviceOptions.FallbackToAccess,
+            EnforceSyncAgentOnly = startupDeviceOptions.EnforceSyncAgentOnly,
+            AllowedEntryAssemblies = startupDeviceOptions.AllowedEntryAssemblies.ToList(),
+            Ip = startupDeviceOptions.Ip,
+            Port = startupDeviceOptions.Port,
+            CommKey = startupDeviceOptions.CommKey,
+            MachineNumber = startupDeviceOptions.MachineNumber,
+            Devices = startupDeviceOptions.Devices.Select(d => new DirectDeviceEndpointOptions
+    {
+        Label = d.Label,
+        Ip = d.Ip,
+        Port = d.Port,
+        CommKey = d.CommKey,
+        MachineNumber = d.MachineNumber
+    }).ToList()
 });
 
 services.AddSingleton(new SqlSyncOptions

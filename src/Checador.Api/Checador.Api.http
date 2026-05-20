@@ -1,0 +1,60 @@
+@Checador.Api_HostAddress = http://localhost:5085
+@consultaAuth = Basic <BASE64_USER_COLON_PASSWORD>
+@adminTempAuth = Basic <BASE64_ADMIN_TEMP>
+
+### health
+GET {{Checador.Api_HostAddress}}/health/status
+Accept: application/json
+
+###
+
+### login (define local credentials)
+POST {{Checador.Api_HostAddress}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "<USUARIO_LOCAL>",
+  "password": "<PASSWORD_LOCAL>"
+}
+
+###
+
+### preview (consulta/admin)
+GET {{Checador.Api_HostAddress}}/preview?userId=1&from=2026-04-01T00:00:00&to=2026-04-02T23:59:59
+Accept: application/json
+Authorization: {{consultaAuth}}
+
+###
+
+### preview all (consulta/admin)
+GET {{Checador.Api_HostAddress}}/preview/all?from=2026-04-01T00:00:00&to=2026-04-02T23:59:59
+Accept: application/json
+Authorization: {{consultaAuth}}
+
+###
+
+### kpi (consulta/admin)
+GET {{Checador.Api_HostAddress}}/kpi?from=2026-04-01T00:00:00&to=2026-04-02T23:59:59
+Accept: application/json
+Authorization: {{consultaAuth}}
+
+###
+
+### admin users (admin only)
+GET {{Checador.Api_HostAddress}}/admin/users
+Accept: application/json
+Authorization: {{adminTempAuth}}
+
+###
+
+### change password (admin temporal -> definitivo)
+POST {{Checador.Api_HostAddress}}/auth/change-password
+Content-Type: application/json
+Authorization: {{adminTempAuth}}
+
+{
+  "currentPassword": "<ADMIN_TEMP_PASSWORD>",
+  "newPassword": "<ADMIN_NEW_PASSWORD>"
+}
+
+###
